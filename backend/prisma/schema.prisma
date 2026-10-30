@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
 }
 
 enum Role {
@@ -21,5 +21,249 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Relasi balik: mesin yang menjadi tanggung jawab user (PIC)
+  picMesin PicMesin[]
+
   @@map("users")
+}
+
+model KategoriAset {
+  id        Int      @id @default(autoincrement())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relasi balik: satu kategori punya banyak asset (tidak membuat kolom baru)
+  assets Asset[]
+
+  // Relasi balik: master checksheet preventive untuk kategori ini
+  checksheets Checksheet[]
+
+  // Relasi balik: jadwal preventive tahunan kategori ini
+  preventivePlans PreventivePlan[]
+
+  @@map("kategori_aset")
+}
+
+enum SubcontStatus {
+  active
+  inactive
+
+  @@map("subcont_status")
+}
+
+model Subcont {
+  id        Int           @id @default(autoincrement())
+  nama      String
+  alamat    String?       @db.Text
+  noTelp    String?       @map("no_telp")
+  pic       String?
+  status    SubcontStatus @default(active)
+  createdAt DateTime?     @default(now()) @map("created_at")
+  updatedAt DateTime?     @updatedAt @map("updated_at")
+
+  @@map("subcont")
+}
+
+model ScheduleCategory {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique @db.VarChar(100)
+  createdAt DateTime? @default(now()) @map("created_at")
+  updatedAt DateTime? @updatedAt @map("updated_at")
+
+  @@map("schedule_categories")
+}
+
+model RepairCategory {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique @db.VarChar(100)
+  createdAt DateTime? @default(now()) @map("created_at")
+  updatedAt DateTime? @updatedAt @map("updated_at")
+
+  @@map("repair_categories")
+}
+
+enum AssetStatus {
+  active
+  inactive
+
+  @@map("asset_status")
+}
+
+model Asset {
+  id                Int         @id @default(autoincrement())
+  categoryId        Int         @map("category_id")
+  status            AssetStatus @default(active)
+  kode              String      @unique @db.VarChar(50)
+  description       String?     @db.Text
+  lane              String?     @db.VarChar(100)
+  kapasitas         String?     @db.VarChar(100)
+  model             String?     @db.VarChar(100)
+  tahunPembuatan    String?     @map("tahun_pembuatan") @db.VarChar(10)
+  nomorSeri         String?     @map("nomor_seri") @db.VarChar(100)
+  power             String?     @db.VarChar(100)
+  tglInstal         String?     @map("tgl_instal") @db.VarChar(100)
+  keterangan        String?     @db.Text
+  capacityKn        String?     @map("capacity_kn") @db.VarChar(100)
+  slideStroke       String?     @map("slide_stroke") @db.VarChar(100)
+  strokePerMinute   String?     @map("stroke_per_minute") @db.VarChar(100)
+  dieHeight         String?     @map("die_height") @db.VarChar(100)
+  slideAdjustment   String?     @map("slide_adjustment") @db.VarChar(100)
+  slideArea         String?     @map("slide_area") @db.VarChar(100)
+  bolsterArea       String?     @map("bolster_area") @db.VarChar(100)
+  mainMotor         String?     @map("main_motor") @db.VarChar(100)
+  reqAirPressure    String?     @map("req_air_pressure") @db.VarChar(100)
+  maxUpperDieWeight String?     @map("max_upper_die_weight") @db.VarChar(100)
+  powerSource       String?     @map("power_source") @db.VarChar(100)
+  brakingTime       String?     @map("braking_time") @db.VarChar(100)
+  // Checksheet yang dipakai saat preventive mesin ini (opsional)
+  checksheetId      Int?        @map("checksheet_id")
+  createdAt         DateTime?   @default(now()) @map("created_at")
+  updatedAt         DateTime?   @updatedAt @map("updated_at")
+
+  // FK category_id → kategori_aset.id. Kategori yang masih dipakai asset tidak bisa dihapus
+  category KategoriAset @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  // Relasi balik: user yang menjadi PIC mesin ini
+  picMesin PicMesin[]
+
+  // Checksheet dihapus -> asset tetap ada, pilihan checksheet-nya dikosongkan
+  checksheet Checksheet? @relation(fields: [checksheetId], references: [id], onDelete: SetNull)
+
+  // Relasi balik: baris jadwal preventive yang terhubung ke mesin ini
+  preventivePlans PreventivePlan[]
+
+  @@index([nomorSeri])
+  @@index([categoryId])
+  @@map("assets")
+}
+
+// PIC Mesin: penghubung user ↔ asset (satu user bisa PIC banyak mesin, satu mesin bisa punya banyak PIC)
+model PicMesin {
+  id        Int       @id @default(autoincrement())
+  userId    Int       @map("user_id")
+  assetId   Int       @map("asset_id")
+  createdAt DateTime? @default(now()) @map("created_at")
+  updatedAt DateTime? @updatedAt @map("updated_at")
+
+  // Jika user / asset dihapus, data PIC-nya ikut terhapus
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, assetId])
+  @@index([assetId])
+  @@map("pic_mesin")
+}
+
+// Master checksheet preventive. Satu kategori aset bisa punya beberapa checksheet (mis. variasi per tipe mesin)
+model Checksheet {
+  id         Int       @id @default(autoincrement())
+  categoryId Int       @map("category_id")
+  name       String    @db.VarChar(150)
+  createdAt  DateTime? @default(now()) @map("created_at")
+  updatedAt  DateTime? @updatedAt @map("updated_at")
+
+  // Kategori yang masih punya checksheet tidak bisa dihapus
+  category KategoriAset     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  items    ChecksheetItem[]
+
+  // Relasi balik: asset yang memakai checksheet ini
+  assets Asset[]
+
+  @@unique([categoryId, name])
+  @@map("checksheets")
+}
+
+// Poin pemeriksaan dalam checksheet, urutannya mengikuti baris di Excel
+model ChecksheetItem {
+  id           Int       @id @default(autoincrement())
+  checksheetId Int       @map("checksheet_id")
+  urutan       Int
+  bagian       String    @db.VarChar(150)
+  poin         String    @db.Text
+  metode       String?   @db.Text
+  standar      String?   @db.Text
+  createdAt    DateTime? @default(now()) @map("created_at")
+  updatedAt    DateTime? @updatedAt @map("updated_at")
+
+  checksheet Checksheet @relation(fields: [checksheetId], references: [id], onDelete: Cascade)
+
+  @@index([checksheetId, urutan])
+  @@map("checksheet_items")
+}
+
+// Daftar sparepart. Status stok dihitung dari stok vs minimal_stok (habis / low / aman)
+model Sparepart {
+  id           BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  kodeBarang   String    @map("kode_barang") @db.VarChar(255)
+  namaBarang   String?   @map("nama_barang") @db.VarChar(255)
+  spec         String?   @db.VarChar(255)
+  stok         Int?
+  minimalStok  Int?      @map("minimal_stok")
+  maksimalStok Int?      @map("maksimal_stok")
+  uom          String?   @db.VarChar(50)
+  keterangan   String?   @db.Text
+  createdAt    DateTime? @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt    DateTime? @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  @@index([kodeBarang])
+  @@map("spareparts")
+}
+
+enum PreventiveType {
+  periodic
+  yearly
+
+  @@map("preventive_type")
+}
+
+enum ScheduleStatus {
+  planned
+  in_progress
+  done
+
+  @@map("schedule_status")
+}
+
+// Satu baris jadwal preventive tahunan (mesin / aktivitas), hasil import Excel jadwal per kategori & tahun
+model PreventivePlan {
+  id         Int       @id @default(autoincrement())
+  categoryId Int       @map("category_id")
+  tahun      Int
+  urutan     Int
+  grup       String?   @db.VarChar(150)
+  // Nama mesin/aktivitas persis seperti di Excel, mis. "PT.61(PT.57)" atau "CLEANING COOLING TOWER"
+  nama       String    @db.VarChar(255)
+  deskripsi  String?   @db.VarChar(255)
+  // Terhubung ke asset kalau kodenya cocok (aktivitas seperti di Utility bisa tanpa asset)
+  assetId    Int?      @map("asset_id")
+  createdAt  DateTime? @default(now()) @map("created_at")
+  updatedAt  DateTime? @updatedAt @map("updated_at")
+
+  category  KategoriAset         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  asset     Asset?               @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  schedules PreventiveSchedule[]
+
+  @@index([categoryId, tahun, urutan])
+  @@index([assetId])
+  @@map("preventive_plans")
+}
+
+// Satu bulatan di tabel jadwal: minggu ke-N (W1..W4) pada bulan tertentu
+model PreventiveSchedule {
+  id          Int            @id @default(autoincrement())
+  planId      Int            @map("plan_id")
+  bulan       Int
+  minggu      Int
+  tipe        PreventiveType @default(periodic)
+  status      ScheduleStatus @default(planned)
+  startedAt   DateTime?      @map("started_at")
+  completedAt DateTime?      @map("completed_at")
+  createdAt   DateTime?      @default(now()) @map("created_at")
+  updatedAt   DateTime?      @updatedAt @map("updated_at")
+
+  plan PreventivePlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, bulan, minggu, tipe])
+  @@map("preventive_schedules")
 }

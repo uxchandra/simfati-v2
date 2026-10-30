@@ -1,11 +1,13 @@
 import { ConstructionIcon } from "lucide-react";
 import { useLocation } from "react-router";
 import { findMenuTrail } from "@/config/menus";
+import { useMenus } from "@/context/MenuContext";
 
 // Ditampilkan untuk menu yang halamannya belum dibuat
 export default function ComingSoonPage() {
   const { pathname } = useLocation();
-  const title = findMenuTrail(pathname).at(-1) ?? "Halaman tidak ditemukan";
+  const { menus } = useMenus();
+  const title = findMenuTrail(menus, pathname).at(-1) ?? "Halaman tidak ditemukan";
 
   return (
     <div>

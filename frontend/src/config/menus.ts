@@ -22,7 +22,11 @@ export type NavItem = {
   icon: LucideIcon;
   to?: string;
   items?: NavSubItem[];
+  // Kalau diisi, submenu diambil dari API dan ditaruh sebelum `items` statis (lihat MenuContext)
+  source?: MenuSource;
 };
+
+export type MenuSource = "kategori-aset" | "schedule-category";
 
 // Daftar menu sidebar. Dipakai juga oleh breadcrumb di AdminLayout.
 // Submenu di bawah ini masih CONTOH — ganti sesuai kebutuhan.
@@ -33,10 +37,12 @@ export const menus: NavItem[] = [
     title: "Data Master",
     icon: DatabaseIcon,
     items: [
-      { title: "Kategori", to: "/data-master/kategori" },
-      { title: "Satuan", to: "/data-master/satuan" },
-      { title: "Lokasi", to: "/data-master/lokasi" },
-      { title: "Supplier", to: "/data-master/supplier" },
+      { title: "Kategori Aset", to: "/data-master/kategori-aset" },
+      { title: "Kategori Schedule", to: "/schedule/kategori" },
+      { title: "Kategori Repair", to: "/data-master/kategori-repair" },
+      { title: "Subcont", to: "/data-master/subcont" },
+      { title: "PIC Mesin", to: "/data-master/pic-mesin" },
+      { title: "Checksheet", to: "/data-master/checksheet" },
     ],
   },
   {
@@ -44,24 +50,22 @@ export const menus: NavItem[] = [
     icon: CogIcon,
     items: [
       { title: "Daftar Sparepart", to: "/sparepart" },
-      { title: "Stok Sparepart", to: "/sparepart/stok" },
+      { title: "Warehouse PUD", to: "/sparepart/warehouse-pud" },
     ],
   },
   {
-    title: "Data Inventaris",
+    title: "Data Asset",
     icon: BoxesIcon,
-    items: [
-      { title: "Daftar Aset", to: "/inventaris" },
-      { title: "Mutasi Aset", to: "/inventaris/mutasi" },
-    ],
+    // Submenu diisi otomatis dari data Kategori Aset (lihat MenuContext)
+    source: "kategori-aset",
+    items: [],
   },
   {
     title: "Schedule",
     icon: CalendarDaysIcon,
-    items: [
-      { title: "Jadwal Maintenance", to: "/schedule" },
-      { title: "Kalender", to: "/schedule/kalender" },
-    ],
+    // Submenu diisi otomatis dari data Kategori Schedule, item di bawah ini tampil setelahnya
+    source: "schedule-category",
+    items: [{ title: "Jadwal Preventive", to: "/schedule/preventive" }],
   },
   {
     title: "Transaksi",
@@ -99,7 +103,8 @@ export const menus: NavItem[] = [
 ];
 
 // Cari urutan judul untuk breadcrumb, mis. "/users" -> ["Manajemen User", "Users"]
-export function findMenuTrail(pathname: string): string[] {
+// `menus` dari useMenus() supaya submenu dinamis (mis. Data Asset) ikut terbaca
+export function findMenuTrail(menus: NavItem[], pathname: string): string[] {
   for (const menu of menus) {
     if (menu.to === pathname) return [menu.title];
 

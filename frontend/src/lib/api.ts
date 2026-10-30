@@ -47,3 +47,28 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
 
   return body as T;
 }
+
+// Download file (mis. template Excel) dari endpoint yang butuh token
+export async function apiDownload(path: string, filename: string) {
+  const token = tokenStorage.get();
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new ApiError("Gagal mengunduh file", res.status);
+
+  const url = URL.createObjectURL(await res.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+// Upload file mentah (application/octet-stream), respon tetap JSON
+export function apiUpload<T>(path: string, file: File) {
+  return api<T>(path, {
+    method: "POST",
+    body: file,
+    headers: { "Content-Type": "application/octet-stream" },
+  });
+}

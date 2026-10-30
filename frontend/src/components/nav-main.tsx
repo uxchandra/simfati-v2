@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { NavLink, useLocation } from "react-router"
 import { ChevronRightIcon } from "lucide-react"
 import type { NavItem } from "@/config/menus"
@@ -27,6 +28,21 @@ const itemClass =
 export function NavMain({ items }: { items: NavItem[] }) {
   const { pathname } = useLocation()
   const { state, setOpen, setOpenMobile } = useSidebar()
+
+  // Grup yang berisi halaman aktif
+  const activeGroup =
+    items.find((item) => item.items?.some((sub) => sub.to === pathname))?.title ?? null
+
+  // Hanya satu grup yang boleh terbuka. Awalnya: grup yang berisi halaman aktif
+  const [openMenu, setOpenMenu] = useState<string | null>(activeGroup)
+
+  // Buka grup halaman aktif saat pindah halaman, atau saat submenu dari API baru selesai dimuat
+  // (pola "sesuaikan state saat render", bukan useEffect: https://react.dev/learn/you-might-not-need-an-effect)
+  const [prevActiveGroup, setPrevActiveGroup] = useState(activeGroup)
+  if (activeGroup !== prevActiveGroup) {
+    setPrevActiveGroup(activeGroup)
+    if (activeGroup) setOpenMenu(activeGroup)
+  }
 
   return (
     <SidebarGroup>
@@ -61,7 +77,8 @@ export function NavMain({ items }: { items: NavItem[] }) {
             <Collapsible
               key={item.title}
               asChild
-              defaultOpen={hasActiveChild}
+              open={openMenu === item.title}
+              onOpenChange={(open) => setOpenMenu(open ? item.title : null)}
               className="group/collapsible"
             >
               <SidebarMenuItem>

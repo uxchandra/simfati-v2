@@ -2,7 +2,7 @@ import * as React from "react"
 import { Link } from "react-router"
 import { ShieldCheckIcon } from "lucide-react"
 import { NavMain } from "@/components/nav-main"
-import { menus } from "@/config/menus"
+import { useMenus } from "@/context/MenuContext"
 import {
   Sidebar,
   SidebarContent,
@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/sidebar"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const { menus } = useMenus()
+
   return (
     // collapsible="icon": saat ditutup, sidebar menyusut jadi strip ikon
     <Sidebar collapsible="icon" {...props}>
@@ -26,8 +28,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <ShieldCheckIcon className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">Admin Panel</span>
-                  <span className="truncate text-xs">React + Express</span>
+                  <span className="truncate font-semibold">SIMFATI</span>
+                  <span className="truncate text-xs">Sistem Maintenance Facility</span>
                 </div>
               </Link>
             </SidebarMenuButton>

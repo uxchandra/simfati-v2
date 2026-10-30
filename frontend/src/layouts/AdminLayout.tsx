@@ -4,6 +4,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ModeToggle } from "@/components/mode-toggle";
 import { UserMenu } from "@/components/user-menu";
 import { findMenuTrail } from "@/config/menus";
+import { useMenus } from "@/context/MenuContext";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -18,14 +19,15 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/s
 export default function AdminLayout() {
   const { pathname } = useLocation();
   // mis. "/users" -> ["Manajemen User", "Users"]
-  const trail = findMenuTrail(pathname);
+  const { menus } = useMenus();
+  const trail = findMenuTrail(menus, pathname);
 
   return (
     <SidebarProvider>
       <AppSidebar />
 
-      {/* Area konten */}
-      <SidebarInset>
+      {/* Area konten. min-w-0: tabel lebar (mis. jadwal 48 minggu) scroll di dalam kartunya, bukan melebarkan halaman */}
+      <SidebarInset className="min-w-0">
         <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-2 border-b bg-background px-4">
           {/* Buka/tutup sidebar (di HP jadi drawer) */}
           <SidebarTrigger className="-ml-1" />
