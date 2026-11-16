@@ -50,6 +50,9 @@
 
 /* Tema stone. Angka oklch: (terang 0-1, kepekatan, hue). Kepekatan kecil = abu hangat */
 :root {
+    /* Warna grafik dashboard (palet kategorikal tervalidasi untuk buta warna, slot 1 & 2) */
+    --viz-1: #2a78d6;
+    --viz-2: #eb6834;
     --background: oklch(1 0 0);
     --foreground: oklch(0.147 0.004 49.25);
     --card: oklch(1 0 0);
@@ -92,6 +95,8 @@
 /* Mode gelap pakai neutral (kepekatan 0 = abu/hitam murni).
      Stone di warna gelap terlihat cokelat karena hue-nya oranye. */
 .dark {
+    --viz-1: #3987e5;
+    --viz-2: #d95926;
     --background: oklch(0.145 0 0);
     --foreground: oklch(0.985 0 0);
     --card: oklch(0.205 0 0);

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { isAdmin as checkIsAdmin } from "../lib/roles";
 import PicMesinFormModal from "../components/PicMesinFormModal";
 import type { Paginated, PicMesin } from "../types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -31,7 +32,7 @@ import {
 export default function PicMesinPage() {
   const { user } = useAuth();
   // Tambah/edit/hapus hanya untuk admin (backend juga mengecek)
-  const isAdmin = user?.role === "ADMIN";
+  const isAdmin = checkIsAdmin(user);
 
   const [result, setResult] = useState<Paginated<PicMesin> | null>(null);
   const [search, setSearch] = useState("");

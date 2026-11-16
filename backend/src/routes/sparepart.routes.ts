@@ -176,11 +176,15 @@ router.put("/:id", requireAdmin, async (req, res) => {
 // DELETE /api/spareparts/:id
 router.delete("/:id", requireAdmin, async (req, res) => {
   const id = parseId(req.params.id);
-  if (!id || !(await prisma.sparepart.findUnique({ where: { id }, select: { id: true } }))) {
-    return res.status(404).json(notFound);
+  const sparepart = id ? await prisma.sparepart.findUnique({ where: { id }, include: { _count: { select: { partRequests: true } } } }) : null;
+  if (!sparepart) return res.status(404).json(notFound);
+  if (sparepart._count.partRequests > 0) {
+    return res.status(400).json({
+      message: `Sparepart ${sparepart.kodeBarang} sudah dipakai di ${sparepart._count.partRequests} permintaan ganti part general checkup, tidak bisa dihapus`,
+    });
   }
 
-  await prisma.sparepart.delete({ where: { id } });
+  await prisma.sparepart.delete({ where: { id: sparepart.id } });
   res.json({ message: "Sparepart berhasil dihapus" });
 });
 

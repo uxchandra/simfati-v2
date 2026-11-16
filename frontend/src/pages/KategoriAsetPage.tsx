@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { isAdmin as checkIsAdmin } from "../lib/roles";
 import { useMenus } from "../context/MenuContext";
 import KategoriAsetFormModal from "../components/KategoriAsetFormModal";
 import type { KategoriAset, Paginated } from "../types";
@@ -31,7 +32,7 @@ import {
 export default function KategoriAsetPage() {
   const { user } = useAuth();
   // Tambah/edit/hapus hanya untuk admin (backend juga mengecek)
-  const isAdmin = user?.role === "ADMIN";
+  const isAdmin = checkIsAdmin(user);
   // Submenu "Data Asset" di sidebar berasal dari kategori aset
   const { reloadMenus } = useMenus();
 

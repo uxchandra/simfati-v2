@@ -199,8 +199,17 @@ router.patch("/schedules/:id", requireAdmin, async (req, res) => {
     return res.status(422).json({ message: "Data tidak valid", errors: z.flattenError(parsed.error).fieldErrors });
   }
 
-  const schedule = await prisma.preventiveSchedule.findUnique({ where: { id } });
+  const schedule = await prisma.preventiveSchedule.findUnique({
+    where: { id },
+    include: { generalCheckup: { select: { kode: true } } },
+  });
   if (!schedule) return res.status(404).json({ message: "Jadwal tidak ditemukan" });
+  // Jadwal yang sudah punya general checkup: statusnya mengikuti checkup, tidak boleh diubah manual
+  if (schedule.generalCheckup) {
+    return res.status(400).json({
+      message: `Status jadwal ini diatur otomatis oleh General Checkup ${schedule.generalCheckup.kode}`,
+    });
+  }
 
   const { status } = parsed.data;
   const now = new Date();

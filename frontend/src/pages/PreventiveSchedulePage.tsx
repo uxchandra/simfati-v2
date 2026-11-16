@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router";
 import { Search, Trash2, Upload } from "lucide-react";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { isAdmin as checkIsAdmin } from "../lib/roles";
 import { displayStatus, STATUS_LABEL, type DisplayStatus } from "../lib/schedule";
 import ScheduleGrid from "../components/ScheduleGrid";
 import ScheduleMarker from "../components/ScheduleMarker";
@@ -37,7 +38,7 @@ const STATUS_ORDER: DisplayStatus[] = ["planned", "overdue", "in_progress", "don
 export default function PreventiveSchedulePage() {
   const { user } = useAuth();
   // Import, ubah status & hapus hanya untuk admin (backend juga mengecek)
-  const isAdmin = user?.role === "ADMIN";
+  const isAdmin = checkIsAdmin(user);
 
   // Kategori & tahun disimpan di URL supaya bisa di-refresh / dibagikan
   const [params, setParams] = useSearchParams();

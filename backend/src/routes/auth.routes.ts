@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
+import { userSelect } from "../lib/user-select";
 
 const router = Router();
 
@@ -30,13 +31,12 @@ router.post("/login", async (req, res) => {
     return res.status(401).json({ message: "Email atau password salah" });
   }
 
-  const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET!, {
-    expiresIn: "1d",
-  });
+  // Token cukup berisi id; role dibaca ulang dari database di requireAuth
+  const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET!, { expiresIn: "1d" });
 
   res.json({
     token,
-    user: { id: user.id, name: user.name, email: user.email, role: user.role },
+    user: await prisma.user.findUnique({ where: { id: user.id }, select: userSelect }),
   });
 });
 
@@ -44,7 +44,7 @@ router.post("/login", async (req, res) => {
 router.get("/me", requireAuth, async (req, res) => {
   const user = await prisma.user.findUnique({
     where: { id: req.user!.id },
-    select: { id: true, name: true, email: true, role: true },
+    select: userSelect,
   });
 
   if (!user) {

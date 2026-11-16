@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { isAdmin as checkIsAdmin } from "../lib/roles";
 import { useMenus } from "../context/MenuContext";
 import CategoryFormModal from "../components/CategoryFormModal";
 import type { Category, Paginated } from "../types";
@@ -37,7 +38,7 @@ type Props = {
 export default function CategoryPage({ title, endpoint }: Props) {
   const { user } = useAuth();
   // Tambah/edit/hapus hanya untuk admin (backend juga mengecek)
-  const isAdmin = user?.role === "ADMIN";
+  const isAdmin = checkIsAdmin(user);
   // Kategori Schedule menjadi submenu Schedule, jadi sidebar perlu di-refresh setelah data berubah
   const { reloadMenus } = useMenus();
 

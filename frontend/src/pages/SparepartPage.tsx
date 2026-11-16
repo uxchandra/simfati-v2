@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { isAdmin as checkIsAdmin } from "../lib/roles";
 import SparepartFormModal from "../components/SparepartFormModal";
 import SparepartImportModal from "../components/SparepartImportModal";
 import type { Paginated, Sparepart, SparepartStats, StockStatus } from "../types";
@@ -74,7 +75,7 @@ const PER_PAGE_OPTIONS = ["10", "25", "50", "100"];
 export default function SparepartPage() {
   const { user } = useAuth();
   // Tambah/edit/hapus/import hanya untuk admin (backend juga mengecek)
-  const isAdmin = user?.role === "ADMIN";
+  const isAdmin = checkIsAdmin(user);
 
   const [result, setResult] = useState<Paginated<Sparepart> | null>(null);
   const [stats, setStats] = useState<SparepartStats | null>(null);
@@ -164,9 +165,9 @@ export default function SparepartPage() {
         )}
       </div>
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {statCards.map(({ key, label, icon: Icon, tone }) => (
-          <Card key={key} className="flex-row items-center gap-4 px-6 py-5">
+          <Card key={key} className="flex-row items-center gap-3 px-4 py-5 xl:gap-4 xl:px-6">
             <div className={cn("flex size-12 shrink-0 items-center justify-center rounded-full", tone)}>
               <Icon className="size-6" />
             </div>

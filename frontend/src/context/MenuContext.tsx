@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { api } from "../lib/api";
+import { useAuth } from "./AuthContext";
 import { menus as baseMenus, type MenuSource, type NavItem, type NavSubItem } from "@/config/menus";
 
 type MenuContextValue = {
@@ -36,14 +37,22 @@ export function MenuProvider({ children }: { children: ReactNode }) {
 
   useEffect(reloadMenus, [reloadMenus]);
 
-  // Submenu dari API tampil lebih dulu, lalu submenu statis (kalau ada)
-  const menus = useMemo(
-    () =>
-      baseMenus.map((menu) =>
-        menu.source ? { ...menu, items: [...(dynamicItems[menu.source] ?? []), ...(menu.items ?? [])] } : menu
-      ),
-    [dynamicItems]
-  );
+  const { user } = useAuth();
+  const role = user?.role.code;
+
+  // Submenu dari API tampil lebih dulu, lalu submenu statis (kalau ada).
+  // Menu & submenu disaring sesuai role user (sama seperti menu per role di SIMFATI v1).
+  const menus = useMemo(() => {
+    const allowed = (roles?: string[]) => !roles || (!!role && roles.includes(role));
+    return baseMenus
+      .filter((menu) => allowed(menu.roles))
+      .map((menu) => {
+        const items = menu.source ? [...(dynamicItems[menu.source] ?? []), ...(menu.items ?? [])] : menu.items;
+        return items ? { ...menu, items: items.filter((item) => allowed(item.roles)) } : menu;
+      })
+      // Grup yang semua submenunya tersaring tidak ditampilkan (kecuali grup dinamis yang masih memuat)
+      .filter((menu) => !menu.items || menu.items.length > 0 || menu.source);
+  }, [dynamicItems, role]);
 
   return <MenuContext.Provider value={{ menus, reloadMenus }}>{children}</MenuContext.Provider>;
 }

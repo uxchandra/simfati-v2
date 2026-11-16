@@ -1,7 +1,19 @@
 import bcrypt from "bcryptjs";
 import { prisma } from "../src/lib/prisma";
+import { ROLES, SYSTEM_ROLES } from "../src/lib/roles";
 
 async function main() {
+  // Role sistem (migration sudah mengisinya; upsert supaya seed aman dijalankan berulang)
+  for (const role of SYSTEM_ROLES) {
+    await prisma.role.upsert({
+      where: { code: role.code },
+      update: { isSystem: true },
+      create: { ...role, isSystem: true },
+    });
+  }
+
+  const superadmin = await prisma.role.findUniqueOrThrow({ where: { code: ROLES.SUPERADMIN } });
+
   await prisma.user.upsert({
     where: { email: "admin@mail.com" },
     update: {},
@@ -9,11 +21,11 @@ async function main() {
       name: "Administrator",
       email: "admin@mail.com",
       password: await bcrypt.hash("admin123", 10),
-      role: "ADMIN",
+      roleId: superadmin.id,
     },
   });
 
-  console.log("Seed selesai: admin@mail.com / admin123");
+  console.log("Seed selesai: admin@mail.com / admin123 (Super Admin)");
 }
 
 main()

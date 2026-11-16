@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Download, Eye, Search, Trash2, Upload } from "lucide-react";
 import { api, apiDownload, ApiError } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { isAdmin as checkIsAdmin } from "../lib/roles";
 import ChecksheetImportModal from "../components/ChecksheetImportModal";
 import ChecksheetDetailModal from "../components/ChecksheetDetailModal";
 import type { Checksheet, KategoriAset, Paginated } from "../types";
@@ -40,7 +41,7 @@ const ALL = "all";
 export default function ChecksheetPage() {
   const { user } = useAuth();
   // Import/hapus hanya untuk admin (backend juga mengecek)
-  const isAdmin = user?.role === "ADMIN";
+  const isAdmin = checkIsAdmin(user);
 
   const [result, setResult] = useState<Paginated<Checksheet> | null>(null);
   const [kategoriList, setKategoriList] = useState<Pick<KategoriAset, "id" | "name">[]>([]);

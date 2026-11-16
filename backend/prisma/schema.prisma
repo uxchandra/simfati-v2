@@ -7,9 +7,21 @@ datasource db {
   provider = "mysql"
 }
 
-enum Role {
-  ADMIN
-  USER
+// Role user. `code` dipakai kode untuk cek hak akses (lihat src/lib/roles.ts),
+// `name` hanya label tampilan sehingga aman diubah lewat halaman Role & Akses.
+// Role sistem (is_system) tidak bisa dihapus dan code-nya tidak bisa diubah.
+model Role {
+  id          Int       @id @default(autoincrement())
+  code        String    @unique @db.VarChar(50)
+  name        String    @db.VarChar(100)
+  description String?   @db.VarChar(255)
+  isSystem    Boolean   @default(false) @map("is_system")
+  createdAt   DateTime? @default(now()) @map("created_at")
+  updatedAt   DateTime? @updatedAt @map("updated_at")
+
+  users User[]
+
+  @@map("roles")
 }
 
 model User {
@@ -17,13 +29,31 @@ model User {
   name      String
   email     String   @unique
   password  String
-  role      Role     @default(USER)
+  roleId    Int      @map("role_id")
+  // Hanya untuk user role subcont: perusahaan subcont tempat user bekerja
+  subcontId Int?     @map("subcont_id")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Role yang masih dipakai user tidak bisa dihapus
+  role    Role     @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  // Subcont dihapus -> user tetap ada, hubungannya dikosongkan
+  subcont Subcont? @relation(fields: [subcontId], references: [id], onDelete: SetNull)
 
   // Relasi balik: mesin yang menjadi tanggung jawab user (PIC)
   picMesin PicMesin[]
 
+  // Relasi balik: general checkup yang dikerjakan user ini
+  generalCheckups GeneralCheckup[]
+  // Relasi balik: penanganan NG yang dicatat user ini
+  inhouseRepairs  InhouseRepair[]
+  outhouseRepairs OuthouseRepair[]
+  partRequests    CheckupPartRequest[]
+  // Relasi balik: laporan kerusakan yang dibuat user ini
+  repairRequests  RepairRequest[]
+
+  @@index([roleId])
+  @@index([subcontId])
   @@map("users")
 }
 
@@ -61,6 +91,12 @@ model Subcont {
   status    SubcontStatus @default(active)
   createdAt DateTime?     @default(now()) @map("created_at")
   updatedAt DateTime?     @updatedAt @map("updated_at")
+
+  // Relasi balik: user (role subcont) dari perusahaan ini
+  users User[]
+
+  // Relasi balik: perbaikan outhouse yang dikerjakan subcont ini
+  outhouseRepairs OuthouseRepair[]
 
   @@map("subcont")
 }
@@ -132,6 +168,12 @@ model Asset {
 
   // Relasi balik: baris jadwal preventive yang terhubung ke mesin ini
   preventivePlans PreventivePlan[]
+
+  // Relasi balik: riwayat general checkup mesin ini
+  generalCheckups GeneralCheckup[]
+
+  // Relasi balik: laporan kerusakan mesin ini
+  repairRequests RepairRequest[]
 
   @@index([nomorSeri])
   @@index([categoryId])
@@ -206,6 +248,9 @@ model Sparepart {
   createdAt    DateTime? @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt    DateTime? @updatedAt @map("updated_at") @db.Timestamp(0)
 
+  // Relasi balik: permintaan ganti part dari general checkup
+  partRequests CheckupPartRequest[]
+
   @@index([kodeBarang])
   @@map("spareparts")
 }
@@ -264,6 +309,269 @@ model PreventiveSchedule {
 
   plan PreventivePlan @relation(fields: [planId], references: [id], onDelete: Cascade)
 
+  // General checkup yang dikerjakan untuk jadwal ini (paling banyak satu)
+  generalCheckup GeneralCheckup?
+
   @@unique([planId, bulan, minggu, tipe])
   @@map("preventive_schedules")
+}
+
+// ===== General Checkup =====
+
+enum CheckupStatus {
+  // Sedang dikerjakan / sudah disubmit tapi masih ada NG yang belum ditangani
+  on_progress
+  completed
+
+  @@map("checkup_status")
+}
+
+enum CheckupShift {
+  morning // 07:00 - 14:59
+  afternoon // 15:00 - 22:59
+  night // 23:00 - 06:59
+
+  @@map("checkup_shift")
+}
+
+enum CheckResult {
+  PENDING
+  OK
+  NG
+
+  @@map("check_result")
+}
+
+// Satu pengerjaan checkup untuk satu jadwal preventive (alur sama dengan SIMFATI v1)
+model GeneralCheckup {
+  id             Int           @id @default(autoincrement())
+  // Nomor checkup, mis. GC-P-001 (inisial kategori + nomor urut)
+  kode           String        @unique @db.VarChar(50)
+  // Jadwal preventive asal. Jadwal dihapus -> riwayat checkup tetap ada
+  scheduleId     Int?          @unique @map("schedule_id")
+  assetId        Int           @map("asset_id")
+  // Checksheet yang dipakai saat checkup dimulai (poin-poinnya disalin ke checkup_details)
+  checksheetName String        @map("checksheet_name") @db.VarChar(150)
+  // User yang memulai / mengerjakan checkup
+  userId         Int           @map("user_id")
+  shift          CheckupShift
+  status         CheckupStatus @default(on_progress)
+  notes          String?       @db.Text
+  startedAt      DateTime      @map("started_at")
+  // Pertama kali hasil checkup disubmit (setelah ini hasil OK/NG tidak bisa diubah)
+  submittedAt    DateTime?     @map("submitted_at")
+  completedAt    DateTime?     @map("completed_at")
+  createdAt      DateTime?     @default(now()) @map("created_at")
+  updatedAt      DateTime?     @updatedAt @map("updated_at")
+
+  schedule PreventiveSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  // Asset / user yang punya riwayat checkup tidak bisa dihapus
+  asset    Asset               @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  user     User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  details CheckupDetail[]
+  photos  CheckupPhoto[]
+
+  @@index([status])
+  @@index([assetId])
+  @@index([userId])
+  @@map("general_checkups")
+}
+
+// Hasil satu poin pemeriksaan. Isi poin disalin dari checksheet_items saat checkup dimulai,
+// supaya riwayat tidak berubah walau checksheet di-import ulang.
+model CheckupDetail {
+  id           Int           @id @default(autoincrement())
+  checkupId    Int           @map("checkup_id")
+  urutan       Int
+  bagian       String        @db.VarChar(150)
+  poin         String        @db.Text
+  metode       String?       @db.Text
+  standar      String?       @db.Text
+  result       CheckResult   @default(PENDING)
+  notes        String?       @db.Text
+  // ===== Penanganan NG (diisi setelah checkup disubmit) =====
+  repairAction RepairAction? @map("repair_action")
+  // Kapan NG dinyatakan selesai ditangani
+  ngClosedAt   DateTime?     @map("ng_closed_at")
+  createdAt    DateTime?     @default(now()) @map("created_at")
+  updatedAt    DateTime?     @updatedAt @map("updated_at")
+
+  checkup GeneralCheckup @relation(fields: [checkupId], references: [id], onDelete: Cascade)
+
+  // Data tindakan sesuai repairAction
+  inhouseRepair  InhouseRepair?
+  outhouseRepair OuthouseRepair?
+  partRequests   CheckupPartRequest[]
+
+  @@index([checkupId, urutan])
+  @@map("checkup_details")
+}
+
+// Foto dokumentasi checkup. File disimpan di backend/uploads/checkup-photos
+model CheckupPhoto {
+  id        Int       @id @default(autoincrement())
+  checkupId Int       @map("checkup_id")
+  // Path relatif terhadap folder uploads, mis. "checkup-photos/abc.jpg"
+  path      String    @db.VarChar(255)
+  createdAt DateTime? @default(now()) @map("created_at")
+
+  checkup GeneralCheckup @relation(fields: [checkupId], references: [id], onDelete: Cascade)
+
+  @@index([checkupId])
+  @@map("checkup_photos")
+}
+
+// ===== Penanganan NG General Checkup =====
+
+enum RepairAction {
+  ganti_part
+  inhouse
+  outhouse
+
+  @@map("repair_action")
+}
+
+// Alur outhouse repair (sama seperti v1): subcont mulai -> subcont selesai -> mekanik konfirmasi
+enum OuthouseStatus {
+  pending // menunggu subcont mulai
+  on_progress // sedang dikerjakan subcont
+  waiting_confirmation // subcont selesai, menunggu konfirmasi mekanik
+  completed
+
+  @@map("outhouse_status")
+}
+
+// Perbaikan oleh tim maintenance sendiri.
+// Sumbernya salah satu: poin NG general checkup (detailId) ATAU repair request (repairRequestId)
+model InhouseRepair {
+  id              Int       @id @default(autoincrement())
+  detailId        Int?      @unique @map("detail_id")
+  repairRequestId Int?      @unique @map("repair_request_id")
+  problem         String    @db.Text
+  perbaikan       String    @db.Text
+  // User yang mencatat (dihapus -> dikosongkan)
+  userId          Int?      @map("user_id")
+  createdAt       DateTime? @default(now()) @map("created_at")
+  updatedAt       DateTime? @updatedAt @map("updated_at")
+
+  detail        CheckupDetail? @relation(fields: [detailId], references: [id], onDelete: Cascade)
+  repairRequest RepairRequest? @relation(fields: [repairRequestId], references: [id], onDelete: Cascade)
+  user          User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@map("inhouse_repairs")
+}
+
+// Perbaikan oleh subcont (perusahaan luar). Sumbernya poin NG checkup ATAU repair request
+model OuthouseRepair {
+  id              Int            @id @default(autoincrement())
+  detailId        Int?           @unique @map("detail_id")
+  repairRequestId Int?           @unique @map("repair_request_id")
+  // Subcont yang masih punya perbaikan tidak bisa dihapus
+  subcontId       Int            @map("subcont_id")
+  problem         String         @db.Text
+  // Perbaikan yang diminta ke subcont
+  perbaikan       String         @db.Text
+  status          OuthouseStatus @default(pending)
+  // Laporan hasil dari subcont saat menyelesaikan
+  hasil           String?        @db.Text
+  startedAt       DateTime?      @map("started_at")
+  finishedAt      DateTime?      @map("finished_at")
+  confirmedAt     DateTime?      @map("confirmed_at")
+  userId          Int?           @map("user_id")
+  createdAt       DateTime?      @default(now()) @map("created_at")
+  updatedAt       DateTime?      @updatedAt @map("updated_at")
+
+  detail        CheckupDetail? @relation(fields: [detailId], references: [id], onDelete: Cascade)
+  repairRequest RepairRequest? @relation(fields: [repairRequestId], references: [id], onDelete: Cascade)
+  subcont       Subcont        @relation(fields: [subcontId], references: [id], onDelete: Restrict)
+  user          User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([subcontId, status])
+  @@index([userId])
+  @@map("outhouse_repairs")
+}
+
+// Permintaan ganti part dari tabel spareparts. Stok dikurangi saat part ditandai terpasang.
+// Sumbernya poin NG checkup ATAU repair request
+model CheckupPartRequest {
+  id              Int       @id @default(autoincrement())
+  detailId        Int?      @map("detail_id")
+  repairRequestId Int?      @map("repair_request_id")
+  // Sparepart yang pernah diminta tidak bisa dihapus
+  sparepartId     BigInt    @map("sparepart_id") @db.UnsignedBigInt
+  quantity        Int
+  keterangan      String?   @db.Text
+  installedAt     DateTime? @map("installed_at")
+  userId          Int?      @map("user_id")
+  createdAt       DateTime? @default(now()) @map("created_at")
+  updatedAt       DateTime? @updatedAt @map("updated_at")
+
+  detail        CheckupDetail? @relation(fields: [detailId], references: [id], onDelete: Cascade)
+  repairRequest RepairRequest? @relation(fields: [repairRequestId], references: [id], onDelete: Cascade)
+  sparepart     Sparepart      @relation(fields: [sparepartId], references: [id], onDelete: Restrict)
+  user          User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([detailId])
+  @@index([repairRequestId])
+  @@index([sparepartId])
+  @@index([userId])
+  @@map("checkup_part_requests")
+}
+
+// ===== Repair Request =====
+
+enum RepairRequestStatus {
+  pending // belum ada tindakan
+  in_progress // tindakan sudah dipilih
+  completed
+  cancelled
+
+  @@map("repair_request_status")
+}
+
+// Laporan kerusakan mesin di luar jadwal (dibuat Ast. Leader / mekanik), ditangani dengan
+// tindakan yang sama seperti NG checkup: ganti part, inhouse, atau outhouse repair
+model RepairRequest {
+  id            Int                 @id @default(autoincrement())
+  // Nomor laporan, mis. RR-202611-001
+  kode          String              @unique @db.VarChar(50)
+  assetId       Int                 @map("asset_id")
+  problem       String              @db.Text
+  status        RepairRequestStatus @default(pending)
+  repairAction  RepairAction?       @map("repair_action")
+  requestedById Int                 @map("requested_by")
+  requestedAt   DateTime            @map("requested_at")
+  completedAt   DateTime?           @map("completed_at")
+  cancelledAt   DateTime?           @map("cancelled_at")
+  createdAt     DateTime?           @default(now()) @map("created_at")
+  updatedAt     DateTime?           @updatedAt @map("updated_at")
+
+  // Asset / user yang punya laporan tidak bisa dihapus
+  asset       Asset @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  requestedBy User  @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+
+  photos         RepairRequestPhoto[]
+  inhouseRepair  InhouseRepair?
+  outhouseRepair OuthouseRepair?
+  partRequests   CheckupPartRequest[]
+
+  @@index([status])
+  @@index([assetId])
+  @@index([requestedById])
+  @@map("repair_requests")
+}
+
+// Foto kerusakan. File disimpan di backend/uploads/repair-photos
+model RepairRequestPhoto {
+  id              Int       @id @default(autoincrement())
+  repairRequestId Int       @map("repair_request_id")
+  path            String    @db.VarChar(255)
+  createdAt       DateTime? @default(now()) @map("created_at")
+
+  repairRequest RepairRequest @relation(fields: [repairRequestId], references: [id], onDelete: Cascade)
+
+  @@index([repairRequestId])
+  @@map("repair_request_photos")
 }

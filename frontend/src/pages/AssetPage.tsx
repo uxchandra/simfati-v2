@@ -3,6 +3,7 @@ import { useLocation, useParams } from "react-router";
 import { Eye, FileSpreadsheet, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { isAdmin as checkIsAdmin } from "../lib/roles";
 import { useMenus } from "../context/MenuContext";
 import { findMenuTrail } from "@/config/menus";
 import AssetFormModal from "../components/AssetFormModal";
@@ -42,7 +43,7 @@ export default function AssetPage() {
 function AssetList({ categoryId }: { categoryId: number }) {
   const { user } = useAuth();
   // Tambah/edit/hapus hanya untuk admin (backend juga mengecek)
-  const isAdmin = user?.role === "ADMIN";
+  const isAdmin = checkIsAdmin(user);
 
   // Judul halaman = nama kategori dari submenu, mis. "Mesin Press"
   const { pathname } = useLocation();

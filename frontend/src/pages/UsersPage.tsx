@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { ROLES } from "../lib/roles";
 import UserFormModal from "../components/UserFormModal";
 import type { Paginated, User } from "../types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -132,7 +133,10 @@ export default function UsersPage() {
                   <TableCell className="px-4 font-medium">{u.name}</TableCell>
                   <TableCell className="px-4 text-muted-foreground">{u.email}</TableCell>
                   <TableCell className="px-4">
-                    <Badge variant={u.role === "ADMIN" ? "default" : "secondary"}>{u.role}</Badge>
+                    <Badge variant={u.role.code === ROLES.SUPERADMIN ? "default" : "secondary"}>
+                      {u.role.name}
+                    </Badge>
+                    {u.subcont && <span className="ml-2 text-xs text-muted-foreground">{u.subcont.nama}</span>}
                   </TableCell>
                   <TableCell className="px-4">
                     <div className="flex justify-end gap-1">

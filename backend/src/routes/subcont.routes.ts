@@ -114,8 +114,13 @@ router.put("/:id", requireAdmin, async (req, res) => {
 router.delete("/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
 
-  const subcont = await prisma.subcont.findUnique({ where: { id } });
+  const subcont = await prisma.subcont.findUnique({ where: { id }, include: { _count: { select: { outhouseRepairs: true } } } });
   if (!subcont) return res.status(404).json({ message: "Subcont tidak ditemukan" });
+  if (subcont._count.outhouseRepairs > 0) {
+    return res.status(400).json({
+      message: `Subcont ${subcont.nama} punya ${subcont._count.outhouseRepairs} riwayat outhouse repair, tidak bisa dihapus. Ubah statusnya menjadi inactive.`,
+    });
+  }
 
   await prisma.subcont.delete({ where: { id } });
   res.json({ message: "Subcont berhasil dihapus" });

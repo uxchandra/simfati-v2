@@ -305,8 +305,16 @@ router.put("/:id", requireAdmin, async (req, res) => {
 router.delete("/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
 
-  const asset = await prisma.asset.findUnique({ where: { id } });
+  const asset = await prisma.asset.findUnique({
+    where: { id },
+    include: { _count: { select: { generalCheckups: true, repairRequests: true } } },
+  });
   if (!asset) return res.status(404).json({ message: "Asset tidak ditemukan" });
+  if (asset._count.generalCheckups > 0 || asset._count.repairRequests > 0) {
+    return res.status(400).json({
+      message: `Asset ${asset.kode} sudah punya riwayat (${asset._count.generalCheckups} general checkup, ${asset._count.repairRequests} repair request), tidak bisa dihapus`,
+    });
+  }
 
   await prisma.asset.delete({ where: { id } });
   res.json({ message: "Asset berhasil dihapus" });

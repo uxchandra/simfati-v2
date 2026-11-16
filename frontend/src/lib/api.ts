@@ -1,6 +1,9 @@
 import type { FieldErrors } from "../types";
 
 const API_URL = import.meta.env.VITE_API_URL;
+
+// Alamat file upload di backend, mis. fileUrl("checkup-photos/a.jpg") -> http://localhost:3000/uploads/checkup-photos/a.jpg
+export const fileUrl = (path: string) => `${String(API_URL).replace(/\/api\/?$/, "")}/uploads/${path}`;
 const TOKEN_KEY = "token";
 
 export const tokenStorage = {

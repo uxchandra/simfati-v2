@@ -1,5 +1,6 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../lib/api";
+import { ROLES } from "../lib/roles";
 import type { FieldErrors, Role, User } from "../types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,11 @@ type Props = {
   onSaved: () => void;
 };
 
+type Options = {
+  roles: Pick<Role, "id" | "code" | "name">[];
+  subconts: { id: number; nama: string }[];
+};
+
 // Pesan error validasi di bawah input
 function FieldError({ messages }: { messages?: string[] }) {
   if (!messages) return null;
@@ -39,11 +45,28 @@ export default function UserFormModal({ user, onClose, onSaved }: Props) {
     name: user?.name ?? "",
     email: user?.email ?? "",
     password: "",
-    role: (user?.role ?? "USER") as Role,
+    roleId: user ? String(user.role.id) : "",
+    subcontId: user?.subcont ? String(user.subcont.id) : "",
   });
+  const [options, setOptions] = useState<Options | null>(null);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    api<Options>("/users/options")
+      .then(setOptions)
+      .catch(() => setMessage("Gagal memuat pilihan role"));
+  }, []);
+
+  const selectedRole = options?.roles.find((r) => String(r.id) === form.roleId);
+  const isSubcont = selectedRole?.code === ROLES.SUBCONT;
+
+  // Subcont yang sedang terhubung tetap tampil walau statusnya sudah tidak aktif
+  const subconts =
+    user?.subcont && options && !options.subconts.some((s) => s.id === user.subcont!.id)
+      ? [...options.subconts, user.subcont]
+      : (options?.subconts ?? []);
 
   function updateField(field: keyof typeof form, value: string) {
     setForm({ ...form, [field]: value });
@@ -58,7 +81,8 @@ export default function UserFormModal({ user, onClose, onSaved }: Props) {
     try {
       await api(isEdit ? `/users/${user.id}` : "/users", {
         method: isEdit ? "PUT" : "POST",
-        body: JSON.stringify(form),
+        // subcontId hanya dikirim untuk role subcont
+        body: JSON.stringify({ ...form, subcontId: isSubcont ? form.subcontId : "" }),
       });
       onSaved();
     } catch (err) {
@@ -126,23 +150,54 @@ export default function UserFormModal({ user, onClose, onSaved }: Props) {
 
           <div className="space-y-2">
             <Label>Role</Label>
-            <Select value={form.role} onValueChange={(value) => updateField("role", value)}>
+            <Select
+              value={form.roleId}
+              onValueChange={(value) => updateField("roleId", value)}
+              disabled={!options}
+            >
               <SelectTrigger className="w-full">
-                <SelectValue />
+                <SelectValue placeholder={options ? "Pilih role" : "Memuat..."} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="USER">User</SelectItem>
-                <SelectItem value="ADMIN">Admin</SelectItem>
+                {options?.roles.map((role) => (
+                  <SelectItem key={role.id} value={String(role.id)}>
+                    {role.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
-            <FieldError messages={errors.role} />
+            <FieldError messages={errors.roleId} />
           </div>
+
+          {isSubcont && (
+            <div className="space-y-2">
+              <Label>Perusahaan Subcont</Label>
+              <Select value={form.subcontId} onValueChange={(value) => updateField("subcontId", value)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Pilih subcont" />
+                </SelectTrigger>
+                <SelectContent>
+                  {subconts.map((s) => (
+                    <SelectItem key={s.id} value={String(s.id)}>
+                      {s.nama}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {subconts.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Belum ada subcont aktif. Tambahkan dulu di menu Data Master → Subcont.
+                </p>
+              )}
+              <FieldError messages={errors.subcontId} />
+            </div>
+          )}
 
           <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={onClose}>
               Batal
             </Button>
-            <Button type="submit" disabled={submitting}>
+            <Button type="submit" disabled={submitting || !options}>
               {submitting ? "Menyimpan..." : "Simpan"}
             </Button>
           </DialogFooter>

@@ -92,7 +92,8 @@ export default function ScheduleDetailModal({ plan, schedule, tahun, canEdit, on
         {canEdit && (
           <div className="space-y-2 border-t pt-4">
             <p className="text-xs text-muted-foreground">
-              Ubah status (sementara manual, nantinya otomatis dari pengisian checksheet)
+              Ubah status manual. Jadwal mesin berubah otomatis saat General Checkup-nya dikerjakan, jadi cara ini
+              hanya untuk aktivitas tanpa checkup.
             </p>
             <div className="flex flex-wrap gap-2">
               {STATUS_OPTIONS.map((option) => (

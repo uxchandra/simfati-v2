@@ -1,10 +1,22 @@
-export type Role = "ADMIN" | "USER";
+// Role dari tabel roles. `code` dipakai untuk cek hak akses (lihat lib/roles.ts), `name` untuk tampilan
+export type Role = {
+  id: number;
+  code: string;
+  name: string;
+  description: string | null;
+  // Role sistem tidak bisa dihapus dan code-nya tidak bisa diubah
+  isSystem: boolean;
+  userCount: number;
+  createdAt?: string | null;
+};
 
 export type User = {
   id: number;
   name: string;
   email: string;
-  role: Role;
+  role: Pick<Role, "id" | "code" | "name">;
+  // Hanya terisi untuk user role subcont
+  subcont: { id: number; nama: string } | null;
   createdAt?: string;
 };
 
@@ -219,4 +231,165 @@ export type ScheduleImportPreview = {
   existing: { plans: number; schedules: number; progress: number };
   summary: { rows: number; schedules: number; matched: number; unmatched: number };
   valid: boolean;
+};
+
+// ===== General Checkup =====
+
+export type CheckupStatus = "on_progress" | "completed";
+export type CheckupShift = "morning" | "afternoon" | "night";
+export type CheckResult = "PENDING" | "OK" | "NG";
+
+export type CheckupAsset = {
+  id: number;
+  kode: string;
+  description: string | null;
+  category: Pick<KategoriAset, "id" | "name">;
+};
+
+// ngOpen = poin NG yang belum ditutup
+export type CheckupCounts = { ok: number; ng: number; pending: number; total: number; ngOpen: number };
+
+// Satu baris daftar checkup (sedang dikerjakan / history)
+export type CheckupSummary = {
+  id: number;
+  kode: string;
+  status: CheckupStatus;
+  shift: CheckupShift;
+  startedAt: string;
+  submittedAt: string | null;
+  completedAt: string | null;
+  checksheetName: string;
+  asset: CheckupAsset;
+  user: { id: number; name: string };
+  // null kalau jadwal asalnya sudah dihapus
+  schedule: { tahun: number; bulan: number; minggu: number; tipe: PreventiveType } | null;
+  counts: CheckupCounts;
+};
+
+export type RepairAction = "ganti_part" | "inhouse" | "outhouse";
+export type OuthouseStatus = "pending" | "on_progress" | "waiting_confirmation" | "completed";
+
+export type InhouseRepair = {
+  problem: string;
+  perbaikan: string;
+  createdAt: string | null;
+  user: { name: string } | null;
+};
+
+export type OuthouseRepair = {
+  id: number;
+  problem: string;
+  perbaikan: string;
+  status: OuthouseStatus;
+  hasil: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  confirmedAt: string | null;
+  subcont: { id: number; nama: string };
+};
+
+export type PartRequest = {
+  id: number;
+  quantity: number;
+  keterangan: string | null;
+  installedAt: string | null;
+  sparepart: Pick<Sparepart, "id" | "kodeBarang" | "namaBarang" | "uom" | "stok">;
+};
+
+// Data penanganan kerusakan (dipakai poin NG checkup & repair request)
+export type RepairData = {
+  repairAction: RepairAction | null;
+  inhouseRepair: InhouseRepair | null;
+  outhouseRepair: OuthouseRepair | null;
+  partRequests: PartRequest[];
+};
+
+export type CheckupDetail = RepairData & {
+  id: number;
+  urutan: number;
+  bagian: string;
+  poin: string;
+  metode: string | null;
+  standar: string | null;
+  result: CheckResult;
+  notes: string | null;
+  ngClosedAt: string | null;
+};
+
+export type CheckupPhoto = { id: number; path: string; createdAt: string | null };
+
+export type GeneralCheckup = CheckupSummary & {
+  notes: string | null;
+  details: CheckupDetail[];
+  photos: CheckupPhoto[];
+};
+
+// Jadwal preventive yang sudah boleh dikerjakan (minggu ini / terlambat)
+export type DueCheckup = {
+  scheduleId: number;
+  tahun: number;
+  bulan: number;
+  minggu: number;
+  tipe: PreventiveType;
+  nama: string;
+  overdue: boolean;
+  asset: CheckupAsset;
+  checksheet: { id: number; name: string; itemCount: number } | null;
+};
+
+export type CheckupBoard = {
+  period: { tahun: number; bulan: number; minggu: number };
+  due: DueCheckup[];
+  inProgress: CheckupSummary[];
+};
+
+// Perbaikan outhouse dilihat dari akun subcont. Sumbernya poin NG checkup atau repair request
+export type SubcontRepair = Omit<OuthouseRepair, "subcont"> & {
+  createdAt: string | null;
+  user: { name: string } | null;
+  source: {
+    type: "checkup" | "repair_request";
+    kode: string;
+    asset: { kode: string; description: string | null; lane: string | null; category: { name: string } };
+    bagian: string | null;
+    poin: string | null;
+    standar: string | null;
+    notes: string | null;
+  };
+};
+
+export type SubcontRepairList = Paginated<SubcontRepair> & { counts: Partial<Record<OuthouseStatus, number>> };
+
+// ===== Repair Request =====
+
+export type RepairRequestStatus = "pending" | "in_progress" | "completed" | "cancelled";
+
+export type RepairRequestAsset = {
+  id: number;
+  kode: string;
+  description: string | null;
+  lane: string | null;
+  category: Pick<KategoriAset, "id" | "name">;
+};
+
+export type RepairRequestSummary = {
+  id: number;
+  kode: string;
+  problem: string;
+  status: RepairRequestStatus;
+  repairAction: RepairAction | null;
+  requestedAt: string;
+  completedAt: string | null;
+  cancelledAt: string | null;
+  asset: RepairRequestAsset;
+  requestedBy: { id: number; name: string };
+  outhouseRepair: { status: OuthouseStatus } | null;
+  _count: { photos: number };
+};
+
+export type RepairRequest = Omit<RepairRequestSummary, "outhouseRepair"> &
+  RepairData & { photos: CheckupPhoto[] };
+
+export type RepairRequestList = Paginated<RepairRequestSummary> & {
+  counts: Partial<Record<RepairRequestStatus, number>>;
 };
