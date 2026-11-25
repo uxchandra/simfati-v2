@@ -138,6 +138,13 @@ router.delete("/:id", requireAdmin, async (req, res) => {
       .json({ message: `Kategori masih dipakai oleh ${checksheetCount} checksheet, tidak bisa dihapus` });
   }
 
+  const scheduleCategoryCount = await prisma.scheduleCategory.count({ where: { kategoriAsetId: id } });
+  if (scheduleCategoryCount > 0) {
+    return res
+      .status(400)
+      .json({ message: `Kategori masih dipakai oleh ${scheduleCategoryCount} kategori schedule, tidak bisa dihapus` });
+  }
+
   const planCount = await prisma.preventivePlan.count({ where: { categoryId: id } });
   if (planCount > 0) {
     return res

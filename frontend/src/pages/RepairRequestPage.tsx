@@ -34,7 +34,8 @@ export default function RepairRequestPage() {
   const status: RepairRequestStatus = statusParam && TABS.includes(statusParam) ? statusParam : "pending";
 
   const [result, setResult] = useState<RepairRequestList | null>(null);
-  const [search, setSearch] = useState("");
+  // Kata kunci awal bisa dari URL, mis. dari dashboard: ?search=PT.61
+  const [search, setSearch] = useState(() => searchParams.get("search") ?? "");
   const [page, setPage] = useState(1);
   const [error, setError] = useState("");
   const [creating, setCreating] = useState(false);

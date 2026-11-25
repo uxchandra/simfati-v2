@@ -14,6 +14,7 @@ export type GridRow<T> = {
   nama: string;
   deskripsi: string | null;
   extra?: ReactNode; // mis. badge "belum terhubung asset"
+  actions?: ReactNode; // mis. tombol edit / hapus baris (tampil saat baris di-hover)
   schedules: GridSchedule[];
   data: T;
 };
@@ -149,7 +150,7 @@ export default function ScheduleGrid<T>({ tahun, rows, onMarkerClick, preview, c
                     <td colSpan={48} />
                   </tr>
                 )}
-                <tr className="hover:bg-muted/30">
+                <tr className="group/row hover:bg-muted/30">
                   <td className="sticky left-0 z-10 w-10 min-w-10 max-w-10 bg-background px-2 py-1.5 text-center text-muted-foreground">
                     {row.no}
                   </td>
@@ -157,6 +158,11 @@ export default function ScheduleGrid<T>({ tahun, rows, onMarkerClick, preview, c
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{row.nama}</span>
                       {row.extra}
+                      {row.actions && (
+                        <div className="ml-auto flex items-center opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
+                          {row.actions}
+                        </div>
+                      )}
                     </div>
                     {row.deskripsi && <div className="text-xs text-muted-foreground">{row.deskripsi}</div>}
                   </td>

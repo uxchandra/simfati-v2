@@ -26,6 +26,21 @@ function countByMonth(dates: (Date | null)[], months: ReturnType<typeof lastMont
   return months.map((m) => counts.get(m.key)!);
 }
 
+type Period = { tahun: number; bulan: number; minggu: number };
+
+// Nomor urut minggu (4 minggu per bulan, sama dengan tabel jadwal) untuk menghitung selisih minggu
+const weekIndex = (p: Period) => (p.tahun * 12 + (p.bulan - 1)) * 4 + (p.minggu - 1);
+
+// Periode N minggu setelah `p`
+function addWeeks(p: Period, n: number): Period {
+  const idx = weekIndex(p) + n;
+  const monthIdx = Math.floor(idx / 4);
+  return { tahun: Math.floor(monthIdx / 12), bulan: (monthIdx % 12) + 1, minggu: (idx % 4) + 1 };
+}
+
+// Repair request yang masih berjalan
+const ACTIVE_RR = ["pending", "in_progress"] as const;
+
 // GET /api/dashboard — ringkasan sesuai role
 router.get("/", async (req, res) => {
   const { role, id: userId, subcontId } = req.user!;
@@ -62,78 +77,291 @@ router.get("/", async (req, res) => {
     });
   }
 
-  // ===== Super Admin & mekanik: ringkasan lengkap =====
-  const { tahun, bulan, minggu } = currentPeriod(now);
+  // ===== Super Admin & mekanik: ringkasan operasional (mengikuti dashboard SIMFATI v1) =====
+  // Jadwal v2 per minggu (W1–W4), jadi "hari ini" di v1 menjadi "minggu ini" di sini.
+  const period = currentPeriod(now);
+  const { tahun, bulan, minggu } = period;
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const fields = prisma.sparepart.fields;
-  // Jadwal mesin yang masih planned & belum ada checkup-nya
-  const plannedWhere = { status: "planned" as const, generalCheckup: { is: null }, plan: { assetId: { not: null } } };
+  const days30 = new Date(todayStart.getTime() - 29 * 86400000);
+  const days90 = new Date(todayStart.getTime() - 90 * 86400000);
+  const upcomingPeriods = [1, 2, 3, 4].map((n) => addWeeks(period, n));
+
+  // Jadwal mesin (bukan aktivitas tanpa asset) yang belum ada checkup-nya
+  const machinePlan = { assetId: { not: null } };
+  const notStarted = { status: "planned" as const, generalCheckup: { is: null } };
+
+  const assetSelect = {
+    kode: true,
+    description: true,
+    category: { select: { name: true } },
+    picMesin: { select: { user: { select: { name: true } } } },
+  };
 
   const [
-    dueThisWeek,
-    overdue,
-    inProgress,
-    completedThisMonth,
-    ngOpen,
-    repairRows,
-    stockLow,
-    stockEmpty,
-    assetTotal,
-    assetActive,
-    byCategory,
-    categories,
-    completedCheckups,
-    requested,
+    weekSchedules,
+    overdueSchedules,
+    onProgressCount,
+    monthSchedules,
+    upcomingCounts,
+    activeRepairs,
+    completedRepairsThisMonth,
+    newRepairsToday,
+    waitingPart,
+    assetsByStatus,
+    assetsInRepair,
+    lowStockItems,
+    subcontItems,
+    troubleRows,
+    checkupDates,
+    repairDates,
+    recentCheckups,
   ] = await Promise.all([
-    prisma.preventiveSchedule.count({ where: { ...plannedWhere, bulan, minggu, plan: { ...plannedWhere.plan, tahun } } }),
-    prisma.preventiveSchedule.count({
+    // Agenda minggu ini
+    prisma.preventiveSchedule.findMany({
+      where: { bulan, minggu, plan: { tahun, ...machinePlan } },
+      select: {
+        id: true,
+        plan: { select: { asset: { select: assetSelect } } },
+        generalCheckup: {
+          select: {
+            id: true,
+            status: true,
+            submittedAt: true,
+            user: { select: { name: true } },
+            _count: { select: { details: { where: { result: "NG" } } } },
+          },
+        },
+      },
+      orderBy: [{ plan: { urutan: "asc" } }],
+    }),
+    // Delay: jadwal minggu-minggu sebelumnya yang belum dikerjakan
+    prisma.preventiveSchedule.findMany({
       where: {
-        ...plannedWhere,
+        ...notStarted,
         OR: [
-          { plan: { tahun: { lt: tahun }, assetId: { not: null } } },
-          { plan: { tahun, assetId: { not: null } }, bulan: { lt: bulan } },
-          { plan: { tahun, assetId: { not: null } }, bulan, minggu: { lt: minggu } },
+          { plan: { tahun: { lt: tahun }, ...machinePlan } },
+          { plan: { tahun, ...machinePlan }, bulan: { lt: bulan } },
+          { plan: { tahun, ...machinePlan }, bulan, minggu: { lt: minggu } },
+        ],
+      },
+      select: {
+        id: true,
+        bulan: true,
+        minggu: true,
+        plan: { select: { tahun: true, asset: { select: { kode: true, description: true } } } },
+      },
+      orderBy: [{ plan: { tahun: "asc" } }, { bulan: "asc" }, { minggu: "asc" }],
+    }),
+    prisma.generalCheckup.count({ where: { status: "on_progress" } }),
+    // Pencapaian PM bulan ini: jadwal bulan ini s/d minggu berjalan
+    prisma.preventiveSchedule.findMany({
+      where: { bulan, minggu: { lte: minggu }, plan: { tahun, ...machinePlan } },
+      select: { minggu: true, generalCheckup: { select: { id: true } } },
+    }),
+    // Jadwal 4 minggu ke depan
+    Promise.all(
+      upcomingPeriods.map((p) =>
+        prisma.preventiveSchedule.count({
+          where: { ...notStarted, bulan: p.bulan, minggu: p.minggu, plan: { tahun: p.tahun, ...machinePlan } },
+        }),
+      ),
+    ),
+    prisma.repairRequest.findMany({
+      where: { status: { in: [...ACTIVE_RR] } },
+      select: {
+        id: true,
+        kode: true,
+        problem: true,
+        status: true,
+        repairAction: true,
+        requestedAt: true,
+        asset: { select: { kode: true, description: true } },
+        requestedBy: { select: { name: true } },
+      },
+      orderBy: { requestedAt: "asc" },
+    }),
+    prisma.repairRequest.findMany({
+      where: { status: "completed", completedAt: { gte: monthStart } },
+      select: { requestedAt: true, completedAt: true },
+    }),
+    prisma.repairRequest.count({ where: { requestedAt: { gte: todayStart } } }),
+    // Part diminta tapi belum terpasang, untuk perbaikan yang masih berjalan
+    prisma.checkupPartRequest.count({
+      where: {
+        installedAt: null,
+        OR: [
+          { repairRequest: { status: { in: [...ACTIVE_RR] } } },
+          { detail: { checkup: { status: "on_progress" } } },
         ],
       },
     }),
-    prisma.generalCheckup.count({ where: { status: "on_progress" } }),
-    prisma.generalCheckup.count({ where: { status: "completed", completedAt: { gte: monthStart } } }),
-    prisma.checkupDetail.count({ where: { result: "NG", ngClosedAt: null, checkup: { submittedAt: { not: null } } } }),
-    prisma.repairRequest.groupBy({ by: ["status"], _count: { _all: true } }),
-    // Sama dengan status stok di halaman Sparepart: low = 0 < stok ≤ minimal, habis = kosong / 0
-    prisma.sparepart.count({ where: { stok: { gt: 0, lte: fields.minimalStok } } }),
-    prisma.sparepart.count({ where: { OR: [{ stok: null }, { stok: { lte: 0 } }] } }),
-    prisma.asset.count(),
-    prisma.asset.count({ where: { status: "active" } }),
-    prisma.asset.groupBy({ by: ["categoryId"], _count: { _all: true } }),
-    prisma.kategoriAset.findMany({ select: { id: true, name: true } }),
-    prisma.generalCheckup.findMany({
-      where: { status: "completed", completedAt: { gte: since } },
-      select: { completedAt: true },
+    prisma.asset.groupBy({ by: ["status"], _count: { _all: true } }),
+    // Mesin yang punya repair request aktif = sedang bermasalah
+    prisma.repairRequest.findMany({
+      where: { status: { in: [...ACTIVE_RR] } },
+      select: { assetId: true },
+      distinct: ["assetId"],
     }),
+    // Sama dengan v1: hanya sparepart yang punya minimal stok, stok <= minimal
+    prisma.sparepart.findMany({
+      where: { minimalStok: { gt: 0 }, stok: { lte: prisma.sparepart.fields.minimalStok } },
+      select: { id: true, kodeBarang: true, namaBarang: true, stok: true, minimalStok: true, uom: true },
+    }),
+    prisma.outhouseRepair.findMany({
+      where: { status: { not: "completed" } },
+      select: {
+        id: true,
+        problem: true,
+        status: true,
+        startedAt: true,
+        subcont: { select: { nama: true } },
+        repairRequest: { select: { id: true, asset: { select: { kode: true } } } },
+        detail: { select: { checkup: { select: { id: true, asset: { select: { kode: true } } } } } },
+      },
+      orderBy: [{ startedAt: "asc" }, { createdAt: "asc" }],
+    }),
+    prisma.repairRequest.groupBy({
+      by: ["assetId"],
+      where: { requestedAt: { gte: days90 }, status: { not: "cancelled" } },
+      _count: { _all: true },
+      orderBy: { _count: { assetId: "desc" } },
+      take: 5,
+    }),
+    prisma.generalCheckup.findMany({ where: { startedAt: { gte: since } }, select: { startedAt: true } }),
     prisma.repairRequest.findMany({ where: { requestedAt: { gte: since } }, select: { requestedAt: true } }),
+    // Hasil checkup 30 hari: NG kalau ada minimal satu poin NG
+    prisma.generalCheckup.findMany({
+      where: { submittedAt: { gte: days30 } },
+      select: { _count: { select: { details: { where: { result: "NG" } } } } },
+    }),
   ]);
 
-  const categoryName = new Map(categories.map((c) => [c.id, c.name]));
+  const troubleAssets = await prisma.asset.findMany({
+    where: { id: { in: troubleRows.map((r) => r.assetId) } },
+    select: { id: true, kode: true, description: true },
+  });
+  const troubleAsset = new Map(troubleAssets.map((a) => [a.id, a]));
+
+  // ----- Checkup minggu ini -----
+  const agenda = weekSchedules
+    .map((s) => {
+      const a = s.plan.asset!;
+      const c = s.generalCheckup;
+      const status = !c ? "pending" : c.status === "completed" ? "completed" : "on_progress";
+      return {
+        scheduleId: s.id,
+        checkupId: c?.id ?? null,
+        kode: a.kode,
+        description: a.description,
+        category: a.category.name,
+        pic: c?.user.name ?? (a.picMesin.map((p) => p.user.name).join(", ") || "-"),
+        status,
+        // Hasil hanya ada setelah checkup disubmit
+        result: c?.submittedAt ? (c._count.details > 0 ? "NG" : "OK") : null,
+      };
+    })
+    // Belum dikerjakan dulu, lalu sedang dikerjakan, lalu selesai
+    .sort((a, b) => ["pending", "on_progress", "completed"].indexOf(a.status) - ["pending", "on_progress", "completed"].indexOf(b.status));
+
+  const completedWeek = agenda.filter((r) => r.status === "completed").length;
+  const inProgressWeek = agenda.filter((r) => r.status === "on_progress").length;
+
+  const currentIdx = weekIndex(period);
+  const overdue = overdueSchedules.map((s) => ({
+    scheduleId: s.id,
+    kode: s.plan.asset!.kode,
+    description: s.plan.asset!.description,
+    period: { tahun: s.plan.tahun, bulan: s.bulan, minggu: s.minggu },
+    weeksLate: currentIdx - weekIndex({ tahun: s.plan.tahun, bulan: s.bulan, minggu: s.minggu }),
+  }));
+
+  const doneThisMonth = monthSchedules.filter((s) => s.generalCheckup).length;
+  const missedThisMonth = monthSchedules.filter((s) => !s.generalCheckup && s.minggu < minggu).length;
+  const pmDenominator = doneThisMonth + missedThisMonth;
+
+  // ----- Repair -----
+  const avgMinutes = completedRepairsThisMonth.length
+    ? Math.round(
+        completedRepairsThisMonth.reduce((n, r) => n + (r.completedAt!.getTime() - r.requestedAt.getTime()) / 60000, 0) /
+          completedRepairsThisMonth.length,
+      )
+    : null;
+
+  // ----- Mesin -----
+  const statusCount = Object.fromEntries(assetsByStatus.map((r) => [r.status, r._count._all]));
+  const assetTotal = assetsByStatus.reduce((n, r) => n + r._count._all, 0);
+
+  // ----- Sparepart: paling kritis dulu (stok / minimal terkecil) -----
+  const lowSorted = lowStockItems
+    .map((s) => ({ ...s, id: s.id.toString(), stok: s.stok ?? 0 }))
+    .sort((a, b) => a.stok / a.minimalStok! - b.stok / b.minimalStok!);
+
+  const ngCount = recentCheckups.filter((c) => c._count.details > 0).length;
 
   res.json({
     view: "full",
-    period: { tahun, bulan, minggu },
-    checkup: { dueThisWeek, overdue, inProgress, completedThisMonth, ngOpen },
-    repairRequests: Object.fromEntries(repairRows.map((r) => [r.status, r._count._all])),
-    stock: { low: stockLow, empty: stockEmpty },
-    assets: {
+    period,
+    checkup: {
+      planWeek: agenda.length,
+      completedWeek,
+      inProgressWeek,
+      notStartedWeek: agenda.length - completedWeek - inProgressWeek,
+      agenda,
+      overdueCount: overdue.length,
+      overdue: overdue.slice(0, 12),
+      onProgressCount,
+      upcoming: upcomingPeriods.map((p, i) => ({ ...p, total: upcomingCounts[i] })),
+      compliancePct: pmDenominator > 0 ? Math.round((doneThisMonth / pmDenominator) * 100) : null,
+      doneThisMonth,
+      missedThisMonth,
+    },
+    repair: {
+      active: activeRepairs,
+      pending: activeRepairs.filter((r) => r.status === "pending").length,
+      inProgress: activeRepairs.filter((r) => r.status === "in_progress").length,
+      newToday: newRepairsToday,
+      completedThisMonth: completedRepairsThisMonth.length,
+      avgResolutionMinutes: avgMinutes,
+      waitingPart,
+    },
+    machine: {
       total: assetTotal,
-      active: assetActive,
-      byCategory: byCategory
-        .map((c) => ({ id: c.categoryId, name: categoryName.get(c.categoryId) ?? "-", total: c._count._all }))
-        .sort((a, b) => b.total - a.total),
+      active: statusCount.active ?? 0,
+      inactive: statusCount.inactive ?? 0,
+      inRepair: assetsInRepair.length,
     },
-    monthly: {
+    sparepart: {
+      lowCount: lowSorted.length,
+      emptyCount: lowSorted.filter((s) => s.stok <= 0).length,
+      lowItems: lowSorted.slice(0, 6),
+    },
+    subcont: {
+      count: subcontItems.length,
+      items: subcontItems.slice(0, 5).map((o) => ({
+        id: o.id,
+        subcont: o.subcont.nama,
+        machine: o.repairRequest?.asset.kode ?? o.detail?.checkup.asset.kode ?? "-",
+        // Halaman asal perbaikan, untuk link dari dashboard
+        repairRequestId: o.repairRequest?.id ?? null,
+        checkupId: o.detail?.checkup.id ?? null,
+        problem: o.problem,
+        status: o.status,
+        startedAt: o.startedAt,
+      })),
+    },
+    topTroubleMachines: troubleRows.map((r) => ({
+      assetId: r.assetId,
+      kode: troubleAsset.get(r.assetId)?.kode ?? "-",
+      description: troubleAsset.get(r.assetId)?.description ?? null,
+      total: r._count._all,
+    })),
+    trend: {
       months,
-      checkups: countByMonth(completedCheckups.map((c) => c.completedAt), months),
-      repairRequests: countByMonth(requested.map((r) => r.requestedAt), months),
+      checkups: countByMonth(checkupDates.map((c) => c.startedAt), months),
+      repairRequests: countByMonth(repairDates.map((r) => r.requestedAt), months),
     },
+    checkupResult: { ok: recentCheckups.length - ngCount, ng: ngCount },
   });
 });
 

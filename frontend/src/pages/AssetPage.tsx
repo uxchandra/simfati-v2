@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -32,6 +33,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+
+const PER_PAGE_OPTIONS = ["10", "25", "50", "100"];
 
 // Route: /data-asset/:categoryId — satu halaman dipakai semua submenu Data Asset.
 // `key` membuat state (search, page) ter-reset saat pindah ke kategori lain.
@@ -52,6 +55,7 @@ function AssetList({ categoryId }: { categoryId: number }) {
 
   const [result, setResult] = useState<Paginated<Asset> | null>(null);
   const [search, setSearch] = useState("");
+  const [perPage, setPerPage] = useState("10");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -72,6 +76,7 @@ function AssetList({ categoryId }: { categoryId: number }) {
         categoryId: String(categoryId),
         search,
         page: String(page),
+        perPage,
       });
       setResult(await api<Paginated<Asset>>(`/assets?${params}`));
     } finally {
@@ -83,7 +88,7 @@ function AssetList({ categoryId }: { categoryId: number }) {
   useEffect(() => {
     const timer = setTimeout(loadData, 400);
     return () => clearTimeout(timer);
-  }, [search, page]);
+  }, [search, perPage, page]);
 
   async function handleDelete(asset: Asset) {
     setError("");
@@ -137,8 +142,30 @@ function AssetList({ categoryId }: { categoryId: number }) {
       )}
 
       <Card className="gap-0 py-0">
-        <div className="border-b p-4">
-          <div className="relative max-w-xs">
+        <div className="flex flex-col gap-3 border-b p-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>Show</span>
+            <Select
+              value={perPage}
+              onValueChange={(value) => {
+                setPerPage(value);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-20">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PER_PAGE_OPTIONS.map((n) => (
+                  <SelectItem key={n} value={n}>
+                    {n}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span>entries</span>
+          </div>
+          <div className="relative w-full md:max-w-xs">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}

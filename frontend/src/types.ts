@@ -51,6 +51,8 @@ export type Subcont = {
 export type Category = {
   id: number;
   name: string;
+  // Hanya Kategori Schedule: kategori aset yang asetnya dijadwalkan di kategori ini
+  kategoriAset?: { id: number; name: string };
   createdAt?: string | null;
 };
 
@@ -207,6 +209,7 @@ export type PreventivePlan = {
 };
 
 export type PreventiveScheduleTable = {
+  scheduleCategory: { id: number; name: string };
   category: Pick<KategoriAset, "id" | "name">;
   tahun: number;
   plans: PreventivePlan[];

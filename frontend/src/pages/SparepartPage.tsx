@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router";
 import { QRCodeSVG } from "qrcode.react";
 import {
   AlertTriangle,
@@ -79,8 +80,13 @@ export default function SparepartPage() {
 
   const [result, setResult] = useState<Paginated<Sparepart> | null>(null);
   const [stats, setStats] = useState<SparepartStats | null>(null);
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<StockStatus | "all">("all");
+  // Filter awal bisa dari URL, mis. dari dashboard: ?status=low atau ?search=SP-001
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(() => searchParams.get("search") ?? "");
+  const [status, setStatus] = useState<StockStatus | "all">(() => {
+    const s = searchParams.get("status");
+    return s === "aman" || s === "low" || s === "habis" ? s : "all";
+  });
   const [perPage, setPerPage] = useState("25");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);

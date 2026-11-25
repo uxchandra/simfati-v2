@@ -56,7 +56,7 @@ router.get("/general-checkup", async (_req, res) => {
 
   // Progres pengisian & NG terbuka per checkup
   const ids = checkups.map((c) => c.id);
-  const [byResult, openNg] = ids.length
+  const [byResult, openNg, ngActions] = ids.length
     ? await Promise.all([
         prisma.checkupDetail.groupBy({ by: ["checkupId", "result"], where: { checkupId: { in: ids } }, _count: { _all: true } }),
         prisma.checkupDetail.groupBy({
@@ -64,8 +64,26 @@ router.get("/general-checkup", async (_req, res) => {
           where: { checkupId: { in: ids }, result: "NG", ngClosedAt: null },
           _count: { _all: true },
         }),
+        // Tindakan penanganan NG untuk kolom Keterangan (seperti andon SIMFATI v1)
+        prisma.checkupDetail.findMany({
+          where: { checkupId: { in: ids }, result: "NG", repairAction: { not: null } },
+          select: {
+            checkupId: true,
+            poin: true,
+            repairAction: true,
+            inhouseRepair: { select: { problem: true } },
+            outhouseRepair: { select: { problem: true } },
+          },
+          orderBy: { urutan: "asc" },
+        }),
       ])
-    : [[], []];
+    : [[], [], []];
+  const actionsByCheckup = new Map<number, { action: string; problem: string }[]>();
+  for (const d of ngActions) {
+    const list = actionsByCheckup.get(d.checkupId) ?? [];
+    list.push({ action: d.repairAction!, problem: d.inhouseRepair?.problem ?? d.outhouseRepair?.problem ?? d.poin });
+    actionsByCheckup.set(d.checkupId, list);
+  }
   const progress = new Map(ids.map((id) => [id, { filled: 0, total: 0, ngOpen: 0 }]));
   for (const r of byResult) {
     const p = progress.get(r.checkupId)!;
@@ -87,6 +105,7 @@ router.get("/general-checkup", async (_req, res) => {
       pic: c.user.name,
       startedAt: c.startedAt,
       progress: progress.get(c.id)!,
+      actions: actionsByCheckup.get(c.id) ?? [],
     })),
     ...schedules
       .map((s) => {
@@ -101,6 +120,7 @@ router.get("/general-checkup", async (_req, res) => {
           pic: null,
           startedAt: null,
           progress: null,
+          actions: [],
           noChecksheet: !checksheet,
         };
       })
@@ -146,16 +166,41 @@ router.get("/repair-request", async (_req, res) => {
         requestedAt: true,
         asset: { select: assetSelect },
         requestedBy: { select: { name: true } },
-        outhouseRepair: { select: { status: true, subcont: { select: { nama: true } } } },
-        partRequests: { select: { installedAt: true } },
+        // Root cause, countermeasure & PIC (kolom andon SIMFATI v1) diambil dari tindakan perbaikannya
+        inhouseRepair: { select: { problem: true, perbaikan: true, user: { select: { name: true } } } },
+        outhouseRepair: {
+          select: {
+            status: true,
+            problem: true,
+            perbaikan: true,
+            subcont: { select: { nama: true } },
+            user: { select: { name: true } },
+          },
+        },
+        partRequests: {
+          select: {
+            installedAt: true,
+            quantity: true,
+            sparepart: { select: { kodeBarang: true, namaBarang: true } },
+            user: { select: { name: true } },
+          },
+        },
       },
       orderBy: { requestedAt: "asc" },
     }),
     prisma.repairRequest.count({ where: { status: "completed", completedAt: { gte: todayStart } } }),
   ]);
 
-  const rows = requests.map(({ partRequests, ...r }) => ({
+  const rows = requests.map(({ partRequests, inhouseRepair, ...r }) => ({
     ...r,
+    rootCause: inhouseRepair?.problem ?? r.outhouseRepair?.problem ?? null,
+    countermeasure:
+      inhouseRepair?.perbaikan ??
+      r.outhouseRepair?.perbaikan ??
+      (partRequests.length
+        ? `Ganti part: ${partRequests.map((p) => `${p.sparepart.namaBarang || p.sparepart.kodeBarang} x${p.quantity}`).join(", ")}`
+        : null),
+    pic: inhouseRepair?.user?.name ?? r.outhouseRepair?.user?.name ?? partRequests[0]?.user?.name ?? null,
     // Status papan: menunggu tindakan / dikerjakan internal / di subcont
     board: r.status === "pending" ? ("waiting" as const) : r.repairAction === "outhouse" ? ("subcont" as const) : ("repair" as const),
     parts: r.repairAction === "ganti_part" ? { installed: partRequests.filter((p) => p.installedAt).length, total: partRequests.length } : null,

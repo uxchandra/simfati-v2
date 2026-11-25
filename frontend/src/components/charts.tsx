@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router";
 import { Table2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -136,23 +137,47 @@ export function MonthlyBars({ labels, series, height = 200 }: { labels: string[]
   );
 }
 
-// Batang horizontal satu seri, nilai ditulis di ujung (cocok untuk kategori dengan nama panjang)
-export function HorizontalBars({ items, color }: { items: { label: string; value: number }[]; color: string }) {
+// Batang horizontal satu seri, nilai ditulis di ujung (cocok untuk kategori dengan nama panjang).
+// Item dengan `to` jadi link yang bisa diklik.
+export function HorizontalBars({
+  items,
+  color,
+}: {
+  items: { label: string; value: number; to?: string; title?: string }[];
+  color: string;
+}) {
   const max = Math.max(1, ...items.map((i) => i.value));
   if (items.length === 0) return <p className="py-6 text-center text-sm text-muted-foreground">Belum ada data</p>;
+  const rowClass = "grid grid-cols-[minmax(0,8rem)_1fr_2.5rem] items-center gap-3 rounded-md text-sm";
   return (
-    <ul className="space-y-2.5">
-      {items.map((item) => (
-        <li key={item.label} className="grid grid-cols-[minmax(0,8rem)_1fr_2.5rem] items-center gap-3 text-sm">
-          <span className="truncate text-muted-foreground" title={item.label}>
-            {item.label}
-          </span>
-          <div className="h-2.5 overflow-hidden rounded-r-[4px] bg-muted">
-            <div className="h-full rounded-r-[4px]" style={{ width: `${(item.value / max) * 100}%`, background: color }} />
-          </div>
-          <span className="text-right font-medium tabular-nums">{item.value}</span>
-        </li>
-      ))}
+    <ul className="space-y-1">
+      {items.map((item) => {
+        const content = (
+          <>
+            <span className="truncate text-muted-foreground" title={item.title ?? item.label}>
+              {item.label}
+            </span>
+            <div className="h-2.5 overflow-hidden rounded-r-[4px] bg-muted">
+              <div className="h-full rounded-r-[4px]" style={{ width: `${(item.value / max) * 100}%`, background: color }} />
+            </div>
+            <span className="text-right font-medium tabular-nums">{item.value}</span>
+          </>
+        );
+        return (
+          <li key={item.label}>
+            {item.to ? (
+              <Link
+                to={item.to}
+                className={cn(rowClass, "-mx-2 px-2 py-1 transition-colors hover:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none")}
+              >
+                {content}
+              </Link>
+            ) : (
+              <div className={cn(rowClass, "py-1")}>{content}</div>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }

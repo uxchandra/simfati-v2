@@ -11,6 +11,7 @@ router.use(requireAuth);
 const categorySelect = {
   id: true,
   name: true,
+  kategoriAset: { select: { id: true, name: true } },
   createdAt: true,
 } as const;
 
@@ -20,7 +21,19 @@ const schema = z.object({
     .trim()
     .min(1, "Nama wajib diisi")
     .max(100, "Nama maksimal 100 karakter"),
+  // Kategori aset yang asetnya dijadwalkan di kategori schedule ini
+  kategoriAsetId: z.coerce
+    .number({ error: "Kategori aset wajib dipilih" })
+    .int()
+    .positive("Kategori aset wajib dipilih"),
 });
+
+const kategoriAsetError = {
+  message: "Data tidak valid",
+  errors: { kategoriAsetId: ["Kategori aset tidak ditemukan"] },
+};
+
+const kategoriAsetExists = async (id: number) => !!(await prisma.kategoriAset.findUnique({ where: { id } }));
 
 function validationError(error: z.ZodError) {
   return { message: "Data tidak valid", errors: z.flattenError(error).fieldErrors };
@@ -85,12 +98,13 @@ router.post("/", requireAdmin, async (req, res) => {
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(422).json(validationError(parsed.error));
 
-  const { name } = parsed.data;
+  const { name, kategoriAsetId } = parsed.data;
 
   if (await findDuplicate(name)) return res.status(422).json(duplicateError);
+  if (!(await kategoriAsetExists(kategoriAsetId))) return res.status(422).json(kategoriAsetError);
 
   const category = await prisma.scheduleCategory.create({
-    data: { name },
+    data: { name, kategoriAsetId },
     select: categorySelect,
   });
 
@@ -104,16 +118,30 @@ router.put("/:id", requireAdmin, async (req, res) => {
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(422).json(validationError(parsed.error));
 
-  const { name } = parsed.data;
+  const { name, kategoriAsetId } = parsed.data;
 
   const category = await prisma.scheduleCategory.findUnique({ where: { id } });
   if (!category) return res.status(404).json({ message: "Kategori tidak ditemukan" });
 
   if (await findDuplicate(name, id)) return res.status(422).json(duplicateError);
+  if (!(await kategoriAsetExists(kategoriAsetId))) return res.status(422).json(kategoriAsetError);
+
+  // Kategori aset tidak boleh diganti kalau sudah ada jadwal (asset di jadwal itu milik kategori aset lama)
+  if (kategoriAsetId !== category.kategoriAsetId) {
+    const planCount = await prisma.preventivePlan.count({ where: { scheduleCategoryId: id } });
+    if (planCount > 0) {
+      return res.status(422).json({
+        message: "Data tidak valid",
+        errors: {
+          kategoriAsetId: [`Kategori aset tidak bisa diganti karena sudah ada ${planCount} baris jadwal`],
+        },
+      });
+    }
+  }
 
   const updated = await prisma.scheduleCategory.update({
     where: { id },
-    data: { name },
+    data: { name, kategoriAsetId },
     select: categorySelect,
   });
 
@@ -126,6 +154,13 @@ router.delete("/:id", requireAdmin, async (req, res) => {
 
   const category = await prisma.scheduleCategory.findUnique({ where: { id } });
   if (!category) return res.status(404).json({ message: "Kategori tidak ditemukan" });
+
+  const planCount = await prisma.preventivePlan.count({ where: { scheduleCategoryId: id } });
+  if (planCount > 0) {
+    return res
+      .status(400)
+      .json({ message: `Kategori masih punya ${planCount} baris jadwal, hapus jadwalnya dulu` });
+  }
 
   await prisma.scheduleCategory.delete({ where: { id } });
   res.json({ message: "Kategori berhasil dihapus" });

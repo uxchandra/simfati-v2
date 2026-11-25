@@ -93,12 +93,12 @@ function findDuplicateKode(kode: string, exceptId?: number) {
 const duplicateError = { message: "Data tidak valid", errors: { kode: ["Kode sudah dipakai"] } };
 const categoryError = { message: "Data tidak valid", errors: { categoryId: ["Kategori tidak ditemukan"] } };
 
-// GET /api/assets?categoryId=1&search=&page=1
+// GET /api/assets?categoryId=1&search=&page=1&perPage=10
 router.get("/", async (req, res) => {
   const search = String(req.query.search ?? "");
   const categoryId = Number(req.query.categoryId) || undefined;
   const page = Math.max(1, Number(req.query.page) || 1);
-  const perPage = 10;
+  const perPage = [10, 25, 50, 100].includes(Number(req.query.perPage)) ? Number(req.query.perPage) : 10;
 
   const where = {
     ...(categoryId ? { categoryId } : {}),

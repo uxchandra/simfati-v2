@@ -32,10 +32,12 @@ import {
 type Props = {
   title: string; // mis. "Kategori Schedule"
   endpoint: string; // mis. "/schedule-categories"
+  // true = tampilkan & isi kolom Kategori Aset (khusus Kategori Schedule)
+  withKategoriAset?: boolean;
 };
 
-// Halaman CRUD kategori sederhana (hanya kolom nama), dipakai Kategori Schedule & Kategori Repair
-export default function CategoryPage({ title, endpoint }: Props) {
+// Halaman CRUD kategori sederhana, dipakai Kategori Schedule (nama + kategori aset) & Kategori Repair (nama)
+export default function CategoryPage({ title, endpoint, withKategoriAset }: Props) {
   const { user } = useAuth();
   // Tambah/edit/hapus hanya untuk admin (backend juga mengecek)
   const isAdmin = checkIsAdmin(user);
@@ -86,7 +88,7 @@ export default function CategoryPage({ title, endpoint }: Props) {
     reloadMenus();
   }
 
-  const colSpan = isAdmin ? 3 : 2;
+  const colSpan = 2 + (isAdmin ? 1 : 0) + (withKategoriAset ? 1 : 0);
 
   return (
     <div>
@@ -126,6 +128,7 @@ export default function CategoryPage({ title, endpoint }: Props) {
             <TableRow>
               <TableHead className="w-16 px-4">No</TableHead>
               <TableHead className="px-4">Nama</TableHead>
+              {withKategoriAset && <TableHead className="px-4">Kategori Aset</TableHead>}
               {isAdmin && <TableHead className="px-4 text-right">Aksi</TableHead>}
             </TableRow>
           </TableHeader>
@@ -149,6 +152,7 @@ export default function CategoryPage({ title, endpoint }: Props) {
                     {(result.page - 1) * 10 + i + 1}
                   </TableCell>
                   <TableCell className="px-4 font-medium">{k.name}</TableCell>
+                  {withKategoriAset && <TableCell className="px-4">{k.kategoriAset?.name ?? "-"}</TableCell>}
                   {isAdmin && (
                     <TableCell className="px-4">
                       <div className="flex justify-end gap-1">
@@ -206,6 +210,7 @@ export default function CategoryPage({ title, endpoint }: Props) {
           title={title}
           endpoint={endpoint}
           category={editing}
+          withKategoriAset={withKategoriAset}
           onClose={() => setEditing(undefined)}
           onSaved={handleSaved}
         />

@@ -60,7 +60,8 @@ export default function App() {
                   <Route path="/data-master/pic-mesin" element={<PicMesinPage />} />
                   <Route path="/sparepart" element={<SparepartPage />} />
                   <Route path="/data-master/checksheet" element={<ChecksheetPage />} />
-                  <Route path="/schedule/preventive" element={<PreventiveSchedulePage />} />
+                  {/* Jadwal per kategori schedule (submenu Schedule di sidebar) */}
+                  <Route path="/schedule/kategori/:scheduleCategoryId" element={<PreventiveSchedulePage />} />
                   <Route path="/transaksi/general-checkup" element={<GeneralCheckupPage />} />
                   <Route path="/transaksi/general-checkup/:id" element={<CheckupPage />} />
                   <Route path="/history/general-checkup" element={<CheckupHistoryPage />} />
@@ -69,7 +70,14 @@ export default function App() {
                   <Route path="/transaksi/repair-request/:id" element={<RepairRequestDetailPage />} />
                   <Route
                     path="/schedule/kategori"
-                    element={<CategoryPage key="schedule" title="Kategori Schedule" endpoint="/schedule-categories" />}
+                    element={
+                      <CategoryPage
+                        key="schedule"
+                        title="Kategori Schedule"
+                        endpoint="/schedule-categories"
+                        withKategoriAset
+                      />
+                    }
                   />
                   <Route
                     path="/data-master/kategori-repair"

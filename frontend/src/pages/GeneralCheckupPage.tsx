@@ -83,7 +83,7 @@ export default function GeneralCheckupPage() {
   const tabs: { value: Tab; label: string; count: number; urgent?: boolean }[] = [
     { value: "progress", label: "Sedang Dikerjakan", count: inProgress.length },
     { value: "current", label: "Minggu ini", count: current.length },
-    { value: "overdue", label: "Terlambat", count: overdue.length, urgent: overdue.length > 0 },
+    { value: "overdue", label: "Delay", count: overdue.length, urgent: overdue.length > 0 },
   ];
 
   return (
@@ -149,7 +149,7 @@ export default function GeneralCheckupPage() {
             rows={tab === "current" ? current : overdue}
             loading={!board}
             error={error}
-            emptyText={tab === "current" ? "Tidak ada jadwal checkup minggu ini" : "Tidak ada jadwal yang terlambat"}
+            emptyText={tab === "current" ? "Tidak ada jadwal checkup minggu ini" : "Tidak ada jadwal yang delay"}
             onStart={setStarting}
           />
         )}

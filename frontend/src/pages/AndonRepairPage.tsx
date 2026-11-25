@@ -1,22 +1,31 @@
-import { ShieldCheck } from "lucide-react";
-import AndonShell, { CounterTile, EmptyBoard, StatusPill } from "../components/andon/AndonShell";
-import { elapsed, tdClass, thClass, useAndonData, useNow, usePaging, type LampColor } from "../components/andon/andon";
-import { ACTION_LABEL, OUTHOUSE_LABEL } from "../lib/checkup";
-import type { OuthouseStatus, RepairAction } from "../types";
+import { Fragment } from "react";
+import AndonShell, { EmptyState } from "../components/andon/AndonShell";
+import {
+  durationShort,
+  formatDateDMY,
+  rowClass,
+  STATUS_TEXT,
+  tableClass,
+  tdClass,
+  thClass,
+  useAndonData,
+  useNow,
+  usePaging,
+  type StatusColor,
+} from "../components/andon/andon";
 import { cn } from "@/lib/utils";
 
 type Row = {
   id: number;
   kode: string;
   problem: string;
-  status: "pending" | "in_progress";
   board: "waiting" | "repair" | "subcont";
-  repairAction: RepairAction | null;
   requestedAt: string;
   asset: { kode: string; description: string | null; lane: string | null; category: { name: string } };
   requestedBy: { name: string };
-  outhouseRepair: { status: OuthouseStatus; subcont: { nama: string } } | null;
-  parts: { installed: number; total: number } | null;
+  rootCause: string | null;
+  countermeasure: string | null;
+  pic: string | null;
 };
 
 type AndonData = {
@@ -24,121 +33,105 @@ type AndonData = {
   rows: Row[];
 };
 
-const STATUS: Record<Row["board"], { color: LampColor; label: string; blink?: boolean }> = {
-  waiting: { color: "red", label: "Menunggu", blink: true },
-  repair: { color: "amber", label: "Perbaikan" },
-  subcont: { color: "blue", label: "Di Subcont" },
+// Warna status mengikuti v1: open kuning, in progress biru, (subcont ungu seperti on trial)
+const STATUS: Record<Row["board"], { color: StatusColor; label: string }> = {
+  waiting: { color: "amber", label: "Open" },
+  repair: { color: "blue", label: "In Progress" },
+  subcont: { color: "purple", label: "Subcont" },
 };
 
-const ROW_HEIGHT = 72;
+const ORDER: Row["board"][] = ["waiting", "repair", "subcont"];
 
-// Downtime > 4 jam ditandai merah, > 1 jam kuning
-function downtimeClass(from: string, now: Date) {
-  const hours = (now.getTime() - new Date(from).getTime()) / 3_600_000;
-  if (hours >= 4) return "text-red-300";
-  if (hours >= 1) return "text-amber-200";
-  return "text-zinc-200";
-}
+const ROW_HEIGHT = 34;
 
-// Papan andon Repair Request: kerusakan yang menunggu tindakan & sedang diperbaiki, dengan downtime berjalan
+// Papan andon Repair Request: kerusakan yang belum selesai, dengan durasi sejak dilaporkan
 export default function AndonRepairPage() {
-  const { data, error, updatedAt } = useAndonData<AndonData>("/andon/repair-request");
+  const { data, error } = useAndonData<AndonData>("/andon/repair-request");
   const now = useNow();
 
-  // Menunggu tindakan selalu di atas, lalu yang terlama
-  const order: Row["board"][] = ["waiting", "repair", "subcont"];
-  const rows = [...(data?.rows ?? [])].sort((a, b) => order.indexOf(a.board) - order.indexOf(b.board));
-  const { containerRef, visible, page, pages } = usePaging(rows, ROW_HEIGHT);
+  // Yang belum ditangani di atas; di dalam status yang sama, yang terlama dulu (urutan dari backend)
+  const rows = [...(data?.rows ?? [])].sort((a, b) => ORDER.indexOf(a.board) - ORDER.indexOf(b.board));
+  const { containerRef, visible, page, pages, perPage } = usePaging(rows, ROW_HEIGHT);
+
+  // Teks berjalan: pelapor | mesin | problem | status (seperti v1)
+  const ticker =
+    data && rows.length === 0 ? (
+      <>&nbsp;&nbsp;&nbsp;✅&nbsp;Tidak ada repair aktif saat ini.</>
+    ) : (
+      rows.map((r) => (
+        <Fragment key={r.id}>
+          &nbsp;&nbsp;{r.requestedBy.name}&nbsp;|&nbsp;{r.asset.kode}&nbsp;|&nbsp;{r.problem}&nbsp;|&nbsp;
+          {STATUS[r.board].label}&nbsp;&nbsp;&nbsp;•
+        </Fragment>
+      ))
+    );
+
   const c = data?.counts;
 
   return (
     <AndonShell
-      title="Repair Request"
-      subtitle={data ? `${rows.length} kerusakan aktif · ${c!.completedToday} selesai hari ini` : "Memuat..."}
+      title="Repair Request Monitoring"
       error={error}
-      updatedAt={updatedAt}
       page={{ page, pages }}
-      legend={[
-        { color: "red", label: "Menunggu tindakan mekanik" },
-        { color: "amber", label: "Perbaikan internal / ganti part" },
-        { color: "blue", label: "Dikerjakan subcont" },
+      ticker={data ? ticker : null}
+      summary={[
+        { label: "Open", value: c?.waiting ?? 0, color: "amber", blink: true },
+        { label: "In Progress", value: c?.repair ?? 0, color: "blue" },
+        { label: "Subcont", value: c?.subcont ?? 0, color: "purple" },
+        { label: "Selesai Hari Ini", value: c?.completedToday ?? 0, color: "green" },
       ]}
-      counters={
-        <>
-          <CounterTile label="Menunggu" value={c?.waiting ?? 0} color="red" blink />
-          <CounterTile label="Perbaikan" value={c?.repair ?? 0} color="amber" />
-          <CounterTile label="Di Subcont" value={c?.subcont ?? 0} color="blue" />
-          <CounterTile label="Selesai hari ini" value={c?.completedToday ?? 0} color="green" />
-        </>
-      }
     >
-      <div ref={containerRef} className="h-full">
-        {data && rows.length === 0 ? (
-          <EmptyBoard icon={<ShieldCheck className="size-16 text-emerald-500" />} text="Tidak ada kerusakan aktif" />
-        ) : (
-          <table className="w-full table-fixed border-collapse">
-            <thead>
-              <tr>
-                <th className={cn(thClass, "w-[12%]")}>Kode</th>
-                <th className={cn(thClass, "w-[16%]")}>Mesin</th>
-                <th className={cn(thClass, "w-[25%]")}>Problem</th>
-                <th className={cn(thClass, "w-[12%]")}>Pelapor</th>
-                <th className={cn(thClass, "w-[10%]")}>Downtime</th>
-                <th className={cn(thClass, "w-[13%]")}>Tindakan</th>
-                <th className={cn(thClass, "w-[12%]")}>Status</th>
-              </tr>
-            </thead>
+      <div ref={containerRef} className="flex h-full flex-col">
+        <table className={tableClass}>
+          <thead>
+            <tr>
+              <th className={cn(thClass, "w-[3%]")}>No</th>
+              <th className={cn(thClass, "w-[10%]")}>Req. From</th>
+              <th className={cn(thClass, "w-[7%]")}>Date</th>
+              <th className={cn(thClass, "w-[7%]")}>Machine</th>
+              <th className={cn(thClass, "w-[6%]")}>Area</th>
+              <th className={cn(thClass, "w-[20%] text-left")}>Problem</th>
+              <th className={cn(thClass, "w-[17%] text-left")}>Root Cause</th>
+              <th className={cn(thClass, "w-[15%] text-left")}>Counterm</th>
+              <th className={cn(thClass, "w-[7%]")}>Status</th>
+              <th className={cn(thClass, "w-[6%]")}>PIC</th>
+              <th className={cn(thClass, "w-[5%]")}>Dur.</th>
+            </tr>
+          </thead>
+          {rows.length > 0 && (
             <tbody>
-              {visible.map((r) => {
+              {visible.map((r, i) => {
                 const s = STATUS[r.board];
-                const reported = new Date(r.requestedAt);
                 return (
-                  <tr key={r.id} style={{ height: ROW_HEIGHT }} className={cn(r.board === "waiting" && "bg-red-950/30")}>
-                    <td className={cn(tdClass, "font-mono text-[0.8em] text-zinc-300")}>{r.kode}</td>
-                    <td className={tdClass}>
-                      <div className="truncate font-black">{r.asset.kode}</div>
-                      <div className="truncate text-[0.65em] font-medium text-zinc-500">
-                        {[r.asset.lane && `Lane ${r.asset.lane}`, r.asset.category.name].filter(Boolean).join(" · ")}
-                      </div>
+                  <tr key={r.id} className={rowClass} style={{ height: ROW_HEIGHT }}>
+                    <td className={tdClass}>{page * perPage + i + 1}</td>
+                    <td className={tdClass}>{r.requestedBy.name}</td>
+                    <td className={tdClass}>{formatDateDMY(r.requestedAt)}</td>
+                    <td className={tdClass} title={r.asset.description ?? undefined}>
+                      {r.asset.kode}
                     </td>
-                    <td className={tdClass}>
-                      <p className="line-clamp-2 text-[0.85em] leading-snug font-medium text-zinc-200">{r.problem}</p>
+                    <td className={tdClass}>{r.asset.lane ?? r.asset.category.name}</td>
+                    <td className={cn(tdClass, "text-left")} title={r.problem}>
+                      {r.problem}
                     </td>
-                    <td className={tdClass}>
-                      <div className="truncate">{r.requestedBy.name}</div>
-                      <div className="font-mono text-[0.65em] text-zinc-500">
-                        {String(reported.getHours()).padStart(2, "0")}:{String(reported.getMinutes()).padStart(2, "0")}{" "}
-                        {reported.toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}
-                      </div>
+                    <td className={cn(tdClass, "text-left")} title={r.rootCause ?? undefined}>
+                      {r.rootCause ?? ""}
                     </td>
-                    <td className={cn(tdClass, "font-mono font-black tabular-nums", downtimeClass(r.requestedAt, now))}>
-                      {elapsed(r.requestedAt, now)}
+                    <td className={cn(tdClass, "text-left")} title={r.countermeasure ?? undefined}>
+                      {r.countermeasure ?? ""}
                     </td>
-                    <td className={tdClass}>
-                      {r.repairAction ? (
-                        <>
-                          <div className="truncate text-[0.85em]">{ACTION_LABEL[r.repairAction]}</div>
-                          <div className="truncate text-[0.65em] font-medium text-zinc-500">
-                            {r.outhouseRepair
-                              ? `${r.outhouseRepair.subcont.nama} · ${OUTHOUSE_LABEL[r.outhouseRepair.status]}`
-                              : r.parts
-                                ? `${r.parts.installed}/${r.parts.total} part terpasang`
-                                : "Internal"}
-                          </div>
-                        </>
-                      ) : (
-                        <span className="text-zinc-600">—</span>
-                      )}
-                    </td>
-                    <td className={tdClass}>
-                      <StatusPill color={s.color} label={s.label} blink={s.blink} />
+                    <td className={cn(tdClass, "tracking-[0.5px]", STATUS_TEXT[s.color])}>{s.label}</td>
+                    <td className={tdClass}>{r.pic ?? ""}</td>
+                    <td className={tdClass} title="Durasi sejak dilaporkan">
+                      {durationShort(r.requestedAt, now)}
                     </td>
                   </tr>
                 );
               })}
             </tbody>
-          </table>
-        )}
+          )}
+        </table>
+        {rows.length === 0 && <EmptyState text={data ? "Tidak ada repair aktif saat ini" : "Memuat data..."} />}
       </div>
     </AndonShell>
   );

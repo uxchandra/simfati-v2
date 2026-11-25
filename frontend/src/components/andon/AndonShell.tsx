@@ -1,92 +1,88 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router";
-import { ArrowLeft, Factory, Maximize, Minimize, WifiOff } from "lucide-react";
-import { LAMP, REFRESH_MS, useNow, type LampColor } from "./andon";
+import { ArrowLeft, Maximize, Minimize, WifiOff } from "lucide-react";
+import { STATUS_TEXT, useNow, type StatusColor } from "./andon";
 import { cn } from "@/lib/utils";
 
-// ===== Komponen bersama papan andon (layar TV lantai produksi) =====
+// ===== Kerangka papan andon (layar TV lantai produksi), desain mengikuti andon SIMFATI v1 =====
 
-export function Lamp({ color, blink, className }: { color: LampColor; blink?: boolean; className?: string }) {
-  return <span className={cn("inline-block size-3 shrink-0 rounded-full", LAMP[color].dot, LAMP[color].glow, blink && "animate-pulse", className)} />;
+const FONT_ID = "andon-montserrat";
+
+// Font Montserrat hanya dimuat saat papan andon dibuka
+function useMontserrat() {
+  useEffect(() => {
+    if (document.getElementById(FONT_ID)) return;
+    const link = document.createElement("link");
+    link.id = FONT_ID;
+    link.rel = "stylesheet";
+    link.href = "https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap";
+    document.head.appendChild(link);
+  }, []);
 }
-
-// Pil status di tabel: lampu + label
-export function StatusPill({ color, label, blink }: { color: LampColor; label: string; blink?: boolean }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[clamp(0.75rem,1vw,1rem)] font-bold tracking-wide uppercase",
-        LAMP[color].ring,
-        LAMP[color].bg,
-        LAMP[color].text,
-      )}
-    >
-      <Lamp color={color} blink={blink} className="size-2.5" />
-      {label}
-    </span>
-  );
-}
-
-// Panel angka besar di bagian atas papan
-export function CounterTile({ label, value, color, blink }: { label: string; value: number; color: LampColor; blink?: boolean }) {
-  const active = value > 0;
-  return (
-    <div
-      className={cn(
-        "relative flex flex-col justify-between overflow-hidden rounded-xl border-2 bg-zinc-950 px-5 py-3",
-        active ? LAMP[color].ring : "border-zinc-800",
-        active && blink && "animate-[pulse_1.6s_ease-in-out_infinite]",
-      )}
-    >
-      {/* Garis warna di atas panel */}
-      <div className={cn("absolute inset-x-0 top-0 h-1.5", active ? LAMP[color].dot : "bg-zinc-800")} />
-      <div className="flex items-center gap-2 pt-1">
-        <Lamp color={active ? color : "gray"} blink={active && blink} />
-        <span className="text-[clamp(0.8rem,1.15vw,1.25rem)] font-bold tracking-wider text-zinc-300 uppercase">{label}</span>
-      </div>
-      <span
-        className={cn(
-          "font-mono text-[clamp(2.5rem,5.5vw,6rem)] leading-none font-black tabular-nums",
-          active ? LAMP[color].text : "text-zinc-600",
-        )}
-      >
-        {String(value).padStart(2, "0")}
-      </span>
-    </div>
-  );
-}
-
-const DAYS = ["MINGGU", "SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "SABTU"];
 
 function Clock() {
   const now = useNow();
   const pad = (n: number) => String(n).padStart(2, "0");
   return (
-    <div className="flex flex-col items-end justify-center rounded-xl border-2 border-zinc-700 bg-zinc-950 px-5 py-2 text-right">
-      <span className="text-[clamp(0.75rem,1vw,1.1rem)] font-bold tracking-widest text-zinc-400">
-        {DAYS[now.getDay()]}, {pad(now.getDate())}/{pad(now.getMonth() + 1)}/{now.getFullYear()}
-      </span>
-      <span className="font-mono text-[clamp(1.75rem,3.2vw,3.5rem)] leading-none font-black tabular-nums text-white">
-        {pad(now.getHours())}:{pad(now.getMinutes())}
-        <span className="text-zinc-500">:{pad(now.getSeconds())}</span>
-      </span>
+    <div className="leading-tight">
+      <div className="text-[22px] font-bold">
+        {pad(now.getDate())}/{pad(now.getMonth() + 1)}/{now.getFullYear()}
+      </div>
+      <div className="text-[22px] font-black tracking-[2px] tabular-nums">
+        {pad(now.getHours())}:{pad(now.getMinutes())}:{pad(now.getSeconds())}
+      </div>
     </div>
   );
 }
 
+export type SummaryItem = { label: string; value: number; color: StatusColor; blink?: boolean };
+
+// Panel ringkasan di bawah header: satu kotak per status, angka besar berwarna (abu-abu kalau 0)
+function Summary({ items }: { items: SummaryItem[] }) {
+  return (
+    <section
+      className="grid shrink-0 border-b-[3px] border-white"
+      style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
+    >
+      {items.map((item) => {
+        const active = item.value > 0;
+        return (
+          <div
+            key={item.label}
+            className="flex flex-col items-center justify-center gap-1 border-r-[3px] border-white px-2 py-2 text-center last:border-r-0"
+          >
+            <span className="truncate text-[clamp(13px,1.2vw,20px)] font-extrabold tracking-[1px] uppercase">
+              {item.label}
+            </span>
+            <span
+              className={cn(
+                "text-[clamp(32px,4.2vw,72px)] leading-none font-black tabular-nums",
+                active ? STATUS_TEXT[item.color] : "text-[#4b5563]",
+                active && item.blink && "animate-pulse",
+              )}
+            >
+              {item.value}
+            </span>
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
 type ShellProps = {
-  title: string;
-  subtitle?: string;
-  counters: ReactNode;
+  title: string; // mis. "GENERAL CHECKUP MONITORING"
+  // Ringkasan jumlah per status, tampil di antara header dan tabel
+  summary?: SummaryItem[];
   children: ReactNode;
-  legend: { color: LampColor; label: string }[];
+  // Teks berjalan di bawah layar (kosong = tidak ditampilkan)
+  ticker?: ReactNode;
   error: string;
-  updatedAt: Date | null;
   page?: { page: number; pages: number };
 };
 
-// Kerangka layar andon: header (logo · judul · jam), panel angka, tabel, footer
-export default function AndonShell({ title, subtitle, counters, children, legend, error, updatedAt, page }: ShellProps) {
+export default function AndonShell({ title, summary, children, ticker, error, page }: ShellProps) {
+  useMontserrat();
   const [fullscreen, setFullscreen] = useState(false);
 
   useEffect(() => {
@@ -100,88 +96,87 @@ export default function AndonShell({ title, subtitle, counters, children, legend
     else document.documentElement.requestFullscreen().catch(() => {});
   }
 
-  const pad = (n: number) => String(n).padStart(2, "0");
-
   return (
-    // Selalu gelap, apa pun tema aplikasi
-    <div className="dark flex h-dvh flex-col gap-3 overflow-hidden bg-black p-3 text-white sm:p-4">
-      {/* ===== Header ===== */}
-      <header className="grid shrink-0 grid-cols-[auto_1fr_auto] items-stretch gap-3">
-        <div className="flex items-center gap-3 rounded-xl border-2 border-zinc-700 bg-zinc-950 px-4">
-          <Factory className="size-[clamp(1.75rem,3vw,3rem)] text-amber-400" />
-          <div className="hidden leading-tight sm:block">
-            <div className="text-[clamp(1rem,1.6vw,1.75rem)] font-black tracking-widest">SIMFATI</div>
-            <div className="text-[clamp(0.6rem,0.8vw,0.85rem)] font-bold tracking-[0.3em] text-zinc-500">MAINTENANCE</div>
-          </div>
+    // Selalu hitam, apa pun tema aplikasi
+    <div className="dark flex h-dvh flex-col overflow-hidden bg-black font-['Montserrat',sans-serif] text-white">
+      {/* ===== Navbar: logo | judul | jam ===== */}
+      <nav className="grid shrink-0 grid-cols-[150px_1fr_200px] border-b-[3px] border-white">
+        <div className="flex items-center justify-center border-r-[3px] border-white p-2.5">
+          <img src="/logo.png" alt="Logo" className="block h-auto w-[110px]" />
         </div>
-        <div className="relative flex flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-zinc-700 bg-gradient-to-b from-zinc-900 to-zinc-950 px-4 py-2 text-center">
-          {/* Garis peringatan kuning-hitam khas pabrik */}
-          <div className="absolute inset-x-0 bottom-0 h-1.5 bg-[repeating-linear-gradient(135deg,#facc15_0_12px,#000_12px_24px)] opacity-80" />
-          <h1 className="text-[clamp(1.5rem,3.6vw,4rem)] leading-none font-black tracking-[0.12em] uppercase">{title}</h1>
-          {subtitle && <p className="mt-1 text-[clamp(0.7rem,1vw,1.1rem)] font-bold tracking-widest text-zinc-400 uppercase">{subtitle}</p>}
+        <div className="flex min-w-0 items-center justify-center p-2.5 text-center">
+          <h1 className="truncate text-[clamp(28px,4vw,55px)] font-bold tracking-[2px] uppercase">{title}</h1>
         </div>
-        <Clock />
-      </header>
+        <div className="flex flex-col items-center justify-center border-l-[3px] border-white p-2.5 text-center">
+          <Clock />
+          {/* Indikator kecil: halaman tabel & koneksi */}
+          {(error || (page && page.pages > 1)) && (
+            <div className="mt-0.5 flex items-center gap-2 text-xs font-semibold">
+              {page && page.pages > 1 && (
+                <span className="text-[#9ca3af]">
+                  Hal {page.page + 1}/{page.pages}
+                </span>
+              )}
+              {error && (
+                <span className="inline-flex items-center gap-1 text-[#f87171]" title={error}>
+                  <WifiOff className="size-3.5" /> Offline
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </nav>
 
-      {/* ===== Panel angka ===== */}
-      <section className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">{counters}</section>
+      {/* ===== Ringkasan ===== */}
+      {summary && <Summary items={summary} />}
 
       {/* ===== Tabel ===== */}
-      <main className="relative min-h-0 flex-1 overflow-hidden rounded-xl border-2 border-zinc-800 bg-zinc-950">{children}</main>
+      <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
 
-      {/* ===== Footer ===== */}
-      <footer className="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-1 text-[clamp(0.7rem,0.9vw,0.95rem)] font-semibold text-zinc-400">
-        {legend.map((l) => (
-          <span key={l.label} className="inline-flex items-center gap-2">
-            <Lamp color={l.color} className="size-2.5" />
-            {l.label}
-          </span>
-        ))}
-        <span className="flex-1" />
-        {error ? (
-          <span className="inline-flex items-center gap-2 text-red-400">
-            <WifiOff className="size-4" /> {error} · menampilkan data terakhir
-          </span>
-        ) : (
-          updatedAt && (
-            <span>
-              Update {pad(updatedAt.getHours())}:{pad(updatedAt.getMinutes())}:{pad(updatedAt.getSeconds())} · otomatis tiap{" "}
-              {REFRESH_MS / 1000} detik
-            </span>
-          )
+      {/* ===== Teks berjalan ===== */}
+      {ticker && (
+        <div className="shrink-0 overflow-hidden border-t-2 border-[#333] bg-[#111] py-2 whitespace-nowrap">
+          <div className="inline-block animate-[andon-ticker_80s_linear_infinite] pl-[100%] text-sm font-bold text-[#fbbf24]">
+            {ticker}
+          </div>
+        </div>
+      )}
+
+      {/* Tombol kecil di pojok, hanya terlihat saat kursor diarahkan (tidak mengganggu tampilan TV) */}
+      <div
+        className={cn(
+          "fixed right-2 z-50 flex gap-1 text-xs opacity-0 transition-opacity hover:opacity-100 focus-within:opacity-100",
+          ticker ? "bottom-11" : "bottom-2",
         )}
-        {page && page.pages > 1 && (
-          <span className="rounded border border-zinc-700 px-2 py-0.5 font-mono text-zinc-300">
-            HAL {page.page + 1}/{page.pages}
-          </span>
-        )}
-        {/* Tombol kecil, tetap bisa diklik tapi tidak mengganggu tampilan TV */}
-        <span className="inline-flex gap-1 opacity-60 transition-opacity hover:opacity-100">
-          {!fullscreen && (
-            <Link to="/" className="inline-flex items-center gap-1 rounded border border-zinc-700 px-2 py-0.5 hover:bg-zinc-800" title="Kembali ke aplikasi">
-              <ArrowLeft className="size-3.5" /> Aplikasi
-            </Link>
-          )}
-          <button
-            type="button"
-            onClick={toggleFullscreen}
-            className="inline-flex items-center gap-1 rounded border border-zinc-700 px-2 py-0.5 hover:bg-zinc-800"
-            title={fullscreen ? "Keluar layar penuh" : "Layar penuh"}
+      >
+        {!fullscreen && (
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1 rounded border border-zinc-600 bg-black px-2 py-1 hover:bg-zinc-800"
+            title="Kembali ke aplikasi"
           >
-            {fullscreen ? <Minimize className="size-3.5" /> : <Maximize className="size-3.5" />}
-            {fullscreen ? "Keluar" : "Layar Penuh"}
-          </button>
-        </span>
-      </footer>
+            <ArrowLeft className="size-3.5" /> Aplikasi
+          </Link>
+        )}
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          className="inline-flex items-center gap-1 rounded border border-zinc-600 bg-black px-2 py-1 hover:bg-zinc-800"
+          title={fullscreen ? "Keluar layar penuh" : "Layar penuh"}
+        >
+          {fullscreen ? <Minimize className="size-3.5" /> : <Maximize className="size-3.5" />}
+          {fullscreen ? "Keluar" : "Layar Penuh"}
+        </button>
+      </div>
     </div>
   );
 }
 
-export function EmptyBoard({ icon, text }: { icon: ReactNode; text: string }) {
+// Pesan kosong / memuat: di luar tabel (tanpa garis), di tengah sisa layar di bawah header tabel
+export function EmptyState({ text }: { text: string }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 text-zinc-500">
-      {icon}
-      <span className="text-[clamp(1rem,1.8vw,2rem)] font-bold tracking-wider uppercase">{text}</span>
+    <div className="flex flex-1 items-center justify-center p-10 text-center text-[clamp(18px,1.8vw,32px)] font-bold text-[#9ca3af]">
+      {text}
     </div>
   );
 }

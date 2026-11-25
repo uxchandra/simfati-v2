@@ -20,7 +20,7 @@ export type DisplayStatus = "planned" | "overdue" | "in_progress" | "done";
 
 export const STATUS_LABEL: Record<DisplayStatus, string> = {
   planned: "Terjadwal",
-  overdue: "Terlambat",
+  overdue: "Delay",
   in_progress: "In progress",
   done: "Selesai",
 };

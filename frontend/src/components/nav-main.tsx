@@ -23,7 +23,7 @@ import {
 // Menu tidak aktif agak pudar, menu aktif teks penuh + latar stone-200
 // (mode gelap: neutral-800, karena stone-200 terlalu terang di sidebar gelap)
 const itemClass =
-  "text-sidebar-foreground/70 data-active:bg-stone-200 data-active:text-sidebar-foreground dark:data-active:bg-neutral-800"
+  "text-sidebar-foreground/70 data-active:bg-sidebar-accent data-active:text-sidebar-foreground"
 
 export function NavMain({ items }: { items: NavItem[] }) {
   const { pathname } = useLocation()
@@ -103,7 +103,11 @@ export function NavMain({ items }: { items: NavItem[] }) {
                           isActive={pathname === sub.to}
                           className={itemClass}
                         >
-                          <NavLink to={sub.to} onClick={() => setOpenMobile(false)}>
+                          <NavLink
+                            to={sub.to}
+                            onClick={() => setOpenMobile(false)}
+                            {...(sub.newTab && { target: "_blank", rel: "noopener noreferrer" })}
+                          >
                             <span>{sub.title}</span>
                           </NavLink>
                         </SidebarMenuSubButton>

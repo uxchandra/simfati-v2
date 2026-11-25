@@ -19,6 +19,8 @@ export type NavSubItem = {
   to: string;
   // Role yang boleh melihat submenu ini. Kosong = ikut role menu induknya
   roles?: string[];
+  // Buka di tab baru (mis. papan andon untuk layar TV)
+  newTab?: boolean;
 };
 
 // Menu punya `to` (langsung jadi link) ATAU `items` (jadi grup yang bisa dibuka-tutup)
@@ -42,6 +44,16 @@ export type MenuSource = "kategori-aset" | "schedule-category";
 // Halaman yang belum dibuat otomatis menampilkan "Halaman belum tersedia".
 export const menus: NavItem[] = [
   { title: "Dashboard", icon: LayoutDashboardIcon, to: "/" },
+  // Papan andon untuk layar TV (tampil penuh tanpa sidebar)
+  {
+    title: "Andon",
+    icon: MonitorIcon,
+    roles: [SUPERADMIN, MEKANIK, AST_LEADER],
+    items: [
+      { title: "General Checkup", to: "/andon/general-checkup", newTab: true },
+      { title: "Repair Request", to: "/andon/repair-request", newTab: true },
+    ],
+  },
   {
     title: "Data Master",
     icon: DatabaseIcon,
@@ -76,9 +88,9 @@ export const menus: NavItem[] = [
     title: "Schedule",
     icon: CalendarDaysIcon,
     roles: [SUPERADMIN, MEKANIK],
-    // Submenu diisi otomatis dari data Kategori Schedule, item di bawah ini tampil setelahnya
+    // Submenu diisi otomatis dari data Kategori Schedule: tiap kategori punya halaman jadwal sendiri
     source: "schedule-category",
-    items: [{ title: "Jadwal Preventive", to: "/schedule/preventive" }],
+    items: [],
   },
   // Khusus akun subcont: outhouse repair dari general checkup
   { title: "Repair Request", icon: WrenchIcon, to: "/subcont/repair", roles: [SUBCONT] },
@@ -89,16 +101,6 @@ export const menus: NavItem[] = [
     items: [
       { title: "General Checkup", to: "/transaksi/general-checkup", roles: [SUPERADMIN, MEKANIK] },
       { title: "Repair Request", to: "/transaksi/repair-request" },
-    ],
-  },
-  // Papan andon untuk layar TV (tampil penuh tanpa sidebar)
-  {
-    title: "Andon",
-    icon: MonitorIcon,
-    roles: [SUPERADMIN, MEKANIK, AST_LEADER],
-    items: [
-      { title: "General Checkup", to: "/andon/general-checkup" },
-      { title: "Repair Request", to: "/andon/repair-request" },
     ],
   },
   {
