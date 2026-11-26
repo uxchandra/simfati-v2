@@ -99,7 +99,7 @@ export default function UsersPage() {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              placeholder="Cari nama atau email..."
+              placeholder="Cari nama atau username..."
               className="pl-9"
             />
           </div>
@@ -109,7 +109,7 @@ export default function UsersPage() {
           <TableHeader>
             <TableRow>
               <TableHead className="px-4">Nama</TableHead>
-              <TableHead className="px-4">Email</TableHead>
+              <TableHead className="px-4">Username</TableHead>
               <TableHead className="px-4">Role</TableHead>
               <TableHead className="px-4 text-right">Aksi</TableHead>
             </TableRow>
@@ -131,7 +131,7 @@ export default function UsersPage() {
               result?.data.map((u) => (
                 <TableRow key={u.id}>
                   <TableCell className="px-4 font-medium">{u.name}</TableCell>
-                  <TableCell className="px-4 text-muted-foreground">{u.email}</TableCell>
+                  <TableCell className="px-4 text-muted-foreground">{u.username}</TableCell>
                   <TableCell className="px-4">
                     <Badge variant={u.role.code === ROLES.SUPERADMIN ? "default" : "secondary"}>
                       {u.role.name}

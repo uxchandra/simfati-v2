@@ -2,7 +2,7 @@
 export const userSelect = {
   id: true,
   name: true,
-  email: true,
+  username: true,
   role: { select: { id: true, code: true, name: true } },
   subcont: { select: { id: true, nama: true } },
   createdAt: true,

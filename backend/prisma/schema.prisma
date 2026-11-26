@@ -27,7 +27,7 @@ model Role {
 model User {
   id        Int      @id @default(autoincrement())
   name      String
-  email     String   @unique
+  username  String   @unique
   password  String
   roleId    Int      @map("role_id")
   // Hanya untuk user role subcont: perusahaan subcont tempat user bekerja

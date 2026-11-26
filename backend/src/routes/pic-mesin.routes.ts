@@ -24,7 +24,7 @@ function validationError(error: z.ZodError) {
   return { message: "Data tidak valid", errors: z.flattenError(error).fieldErrors };
 }
 
-const userSelect = { id: true, name: true, email: true } as const;
+const userSelect = { id: true, name: true, username: true } as const;
 const assetSelect = {
   id: true,
   kode: true,
@@ -80,14 +80,14 @@ router.get("/", async (req, res) => {
   const page = Math.max(1, Number(req.query.page) || 1);
   const perPage = 10;
 
-  // Hanya user yang punya minimal 1 mesin; cari berdasarkan nama/email user atau kode/model mesin
+  // Hanya user yang punya minimal 1 mesin; cari berdasarkan nama/username user atau kode/model mesin
   const where = {
     picMesin: { some: {} },
     ...(search
       ? {
           OR: [
             { name: { contains: search } },
-            { email: { contains: search } },
+            { username: { contains: search } },
             { picMesin: { some: { asset: { kode: { contains: search } } } } },
             { picMesin: { some: { asset: { model: { contains: search } } } } },
           ],

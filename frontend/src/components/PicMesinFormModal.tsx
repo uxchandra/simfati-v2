@@ -43,7 +43,7 @@ export default function PicMesinFormModal({ pic, onClose, onSaved }: Props) {
   const [selected, setSelected] = useState<PicAsset[]>(pic?.assets ?? []);
   const [assetSearch, setAssetSearch] = useState("");
 
-  const [users, setUsers] = useState<Pick<User, "id" | "name" | "email">[]>([]);
+  const [users, setUsers] = useState<Pick<User, "id" | "name" | "username">[]>([]);
   const [categories, setCategories] = useState<Pick<KategoriAset, "id" | "name">[]>([]);
   const [assets, setAssets] = useState<PicAsset[]>([]);
   const [loadingAssets, setLoadingAssets] = useState(false);
@@ -55,7 +55,7 @@ export default function PicMesinFormModal({ pic, onClose, onSaved }: Props) {
   // Pilihan user & kategori
   useEffect(() => {
     if (!isEdit) {
-      api<Pick<User, "id" | "name" | "email">[]>("/pic-mesin/options/users")
+      api<Pick<User, "id" | "name" | "username">[]>("/pic-mesin/options/users")
         .then(setUsers)
         .catch(() => setMessage("Gagal memuat daftar user"));
     }
@@ -144,7 +144,7 @@ export default function PicMesinFormModal({ pic, onClose, onSaved }: Props) {
             <Label>User</Label>
             {isEdit ? (
               // User tidak bisa diganti saat edit; hapus lalu buat baru jika perlu
-              <Input value={`${pic.user.name} (${pic.user.email})`} disabled />
+              <Input value={`${pic.user.name} (@${pic.user.username})`} disabled />
             ) : (
               <Select value={userId} onValueChange={setUserId}>
                 <SelectTrigger className="w-full min-w-0">
@@ -153,7 +153,7 @@ export default function PicMesinFormModal({ pic, onClose, onSaved }: Props) {
                 <SelectContent>
                   {users.map((u) => (
                     <SelectItem key={u.id} value={String(u.id)}>
-                      {u.name} <span className="text-muted-foreground">({u.email})</span>
+                      {u.name} <span className="text-muted-foreground">(@{u.username})</span>
                     </SelectItem>
                   ))}
                 </SelectContent>

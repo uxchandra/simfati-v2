@@ -13,7 +13,7 @@ export type Role = {
 export type User = {
   id: number;
   name: string;
-  email: string;
+  username: string;
   role: Pick<Role, "id" | "code" | "name">;
   // Hanya terisi untuk user role subcont
   subcont: { id: number; nama: string } | null;
@@ -27,7 +27,7 @@ export type Paginated<T> = {
   totalPages: number;
 };
 
-// Format error validasi dari backend: { email: ["Email sudah dipakai"] }
+// Format error validasi dari backend: { username: ["Username sudah dipakai"] }
 export type FieldErrors = Record<string, string[] | undefined>;
 export type KategoriAset = {
   id: number;
@@ -98,7 +98,7 @@ export type PicAsset = Pick<Asset, "id" | "kode" | "model" | "category">;
 
 // Satu baris PIC Mesin = satu user beserta semua mesinnya
 export type PicMesin = {
-  user: Pick<User, "id" | "name" | "email">;
+  user: Pick<User, "id" | "name" | "username">;
   assets: PicAsset[];
 };
 

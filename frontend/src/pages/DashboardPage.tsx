@@ -419,7 +419,7 @@ function FullView({ data }: { data: FullDashboard }) {
           warn={checkup.overdueCount > 0}
           to="/transaksi/general-checkup?tab=overdue"
         >
-          Jadwal lewat jatuh tempo · {checkup.onProgressCount} checkup masih menunggu perbaikan NG
+          {checkup.onProgressCount > 0 ? `${checkup.onProgressCount} menunggu perbaikan NG` : "Lewat jatuh tempo"}
         </KpiCard>
         <KpiCard label="Repair Aktif" icon={Wrench} value={repair.active.length} to="/transaksi/repair-request?status=pending">
           <div className="mb-1.5 flex flex-wrap gap-1.5">

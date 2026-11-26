@@ -50,7 +50,7 @@ export function UserMenu() {
         <DropdownMenuLabel className="font-normal">
           <div className="grid text-sm leading-tight">
             <span className="truncate font-medium">{user.name}</span>
-            <span className="truncate text-xs text-muted-foreground">{user.email}</span>
+            <span className="truncate text-xs text-muted-foreground">@{user.username}</span>
             <span className="mt-1 text-xs text-muted-foreground">Role: {user.role.name}</span>
           </div>
         </DropdownMenuLabel>

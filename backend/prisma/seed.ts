@@ -15,17 +15,17 @@ async function main() {
   const superadmin = await prisma.role.findUniqueOrThrow({ where: { code: ROLES.SUPERADMIN } });
 
   await prisma.user.upsert({
-    where: { email: "admin@mail.com" },
+    where: { username: "admin" },
     update: {},
     create: {
       name: "Administrator",
-      email: "admin@mail.com",
+      username: "admin",
       password: await bcrypt.hash("admin123", 10),
       roleId: superadmin.id,
     },
   });
 
-  console.log("Seed selesai: admin@mail.com / admin123 (Super Admin)");
+  console.log("Seed selesai: admin / admin123 (Super Admin)");
 }
 
 main()

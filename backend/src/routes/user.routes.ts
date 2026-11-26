@@ -19,7 +19,14 @@ const idField = (message: string) =>
 
 const createSchema = z.object({
   name: z.string({ error: "Nama wajib diisi" }).trim().min(1, "Nama wajib diisi"),
-  email: z.email("Format email tidak valid"),
+  username: z
+    .string({ error: "Username wajib diisi" })
+    .trim()
+    .toLowerCase()
+    .min(3, "Username minimal 3 karakter")
+    .max(50, "Username maksimal 50 karakter")
+    .regex(/^[a-z0-9._-]+$/, "Username hanya boleh huruf, angka, titik, garis bawah, atau strip"),
+
   password: z.string({ error: "Password wajib diisi" }).min(6, "Password minimal 6 karakter"),
   roleId: idField("Role wajib dipilih"),
   subcontId: idField("Subcont tidak valid").optional(),
@@ -67,7 +74,7 @@ router.get("/", async (req, res) => {
 
   const where = {
     ...(roleId ? { roleId } : {}),
-    ...(search ? { OR: [{ name: { contains: search } }, { email: { contains: search } }] } : {}),
+    ...(search ? { OR: [{ name: { contains: search } }, { username: { contains: search } }] } : {}),
   };
 
   const [data, total] = await Promise.all([
@@ -113,18 +120,18 @@ router.post("/", async (req, res) => {
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) return res.status(422).json(validationError(parsed.error));
 
-  const { name, email, password, roleId } = parsed.data;
+  const { name, username, password, roleId } = parsed.data;
 
   const resolved = await resolveRoleAndSubcont(roleId, parsed.data.subcontId);
   if ("errors" in resolved) return res.status(422).json(invalid(resolved.errors));
 
-  const exists = await prisma.user.findUnique({ where: { email } });
-  if (exists) return res.status(422).json(invalid({ email: ["Email sudah dipakai"] }));
+  const exists = await prisma.user.findUnique({ where: { username } });
+  if (exists) return res.status(422).json(invalid({ username: ["Username sudah dipakai"] }));
 
   const user = await prisma.user.create({
     data: {
       name,
-      email,
+      username,
       roleId,
       subcontId: resolved.subcontId,
       password: await bcrypt.hash(password, 10),
@@ -142,7 +149,7 @@ router.put("/:id", async (req, res) => {
   const parsed = updateSchema.safeParse(req.body);
   if (!parsed.success) return res.status(422).json(validationError(parsed.error));
 
-  const { name, email, password, roleId } = parsed.data;
+  const { name, username, password, roleId } = parsed.data;
 
   const user = await prisma.user.findUnique({ where: { id } });
   if (!user) return res.status(404).json({ message: "User tidak ditemukan" });
@@ -155,14 +162,14 @@ router.put("/:id", async (req, res) => {
     return res.status(422).json(invalid({ roleId: ["Tidak bisa mengubah role akun sendiri"] }));
   }
 
-  const emailUsed = await prisma.user.findFirst({ where: { email, NOT: { id } } });
-  if (emailUsed) return res.status(422).json(invalid({ email: ["Email sudah dipakai"] }));
+  const usernameUsed = await prisma.user.findFirst({ where: { username, NOT: { id } } });
+  if (usernameUsed) return res.status(422).json(invalid({ username: ["Username sudah dipakai"] }));
 
   const updated = await prisma.user.update({
     where: { id },
     data: {
       name,
-      email,
+      username,
       roleId,
       subcontId: resolved.subcontId,
       // Hanya update password kalau diisi

@@ -138,7 +138,7 @@ export default function PicMesinPage() {
                 <TableRow key={p.user.id}>
                   <TableCell className="px-4 align-top">
                     <div className="font-medium">{p.user.name}</div>
-                    <div className="text-xs text-muted-foreground">{p.user.email}</div>
+                    <div className="text-xs text-muted-foreground">@{p.user.username}</div>
                   </TableCell>
                   <TableCell className="px-4 whitespace-normal">
                     <div className="flex max-w-xl flex-wrap gap-1.5">

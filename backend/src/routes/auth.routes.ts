@@ -9,7 +9,7 @@ import { userSelect } from "../lib/user-select";
 const router = Router();
 
 const loginSchema = z.object({
-  email: z.email("Format email tidak valid"),
+  username: z.string({ error: "Username wajib diisi" }).trim().min(1, "Username wajib diisi"),
   password: z.string({ error: "Password wajib diisi" }).min(1, "Password wajib diisi"),
 });
 
@@ -23,12 +23,12 @@ router.post("/login", async (req, res) => {
     });
   }
 
-  const { email, password } = parsed.data;
-  const user = await prisma.user.findUnique({ where: { email } });
+  const { username, password } = parsed.data;
+  const user = await prisma.user.findUnique({ where: { username } });
 
-  // Pesan sengaja disamakan agar tidak bocor email mana yang terdaftar
+  // Pesan sengaja disamakan agar tidak bocor username mana yang terdaftar
   if (!user || !(await bcrypt.compare(password, user.password))) {
-    return res.status(401).json({ message: "Email atau password salah" });
+    return res.status(401).json({ message: "Username atau password salah" });
   }
 
   // Token cukup berisi id; role dibaca ulang dari database di requireAuth

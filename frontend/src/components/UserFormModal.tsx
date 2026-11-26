@@ -43,7 +43,7 @@ export default function UserFormModal({ user, onClose, onSaved }: Props) {
 
   const [form, setForm] = useState({
     name: user?.name ?? "",
-    email: user?.email ?? "",
+    username: user?.username ?? "",
     password: "",
     roleId: user ? String(user.role.id) : "",
     subcontId: user?.subcont ? String(user.subcont.id) : "",
@@ -124,14 +124,14 @@ export default function UserFormModal({ user, onClose, onSaved }: Props) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="username">Username</Label>
             <Input
-              id="email"
-              type="email"
-              value={form.email}
-              onChange={(e) => updateField("email", e.target.value)}
+              id="username"
+              autoComplete="off"
+              value={form.username}
+              onChange={(e) => updateField("username", e.target.value.toLowerCase())}
             />
-            <FieldError messages={errors.email} />
+            <FieldError messages={errors.username} />
           </div>
 
           <div className="space-y-2">
